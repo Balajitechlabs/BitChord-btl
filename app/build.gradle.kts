@@ -132,7 +132,7 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
-            applicationId = "com.dev.bitchord"
+            applicationId = "com.apple.android.music"
             resValue("string", "app_name", "BitChord Dev")
         }
         create("prod") {

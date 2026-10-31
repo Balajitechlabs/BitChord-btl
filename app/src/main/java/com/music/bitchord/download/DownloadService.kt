@@ -8,8 +8,11 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import com.music.bitchord.MainActivity
 import com.music.bitchord.R
 import com.music.bitchord.data.model.Song
 import kotlinx.coroutines.CoroutineScope
@@ -216,10 +219,24 @@ class DownloadService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val contentIntent = mainActivityPendingIntent()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            return buildLiveUpdateNotification(
+                title = title,
+                text = text,
+                percent = percent,
+                indeterminate = runningStates.isEmpty(),
+                cancel = cancel,
+                contentIntent = contentIntent,
+            )
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_logo)
             .setContentTitle(title)
             .setContentText(text)
+            .setContentIntent(contentIntent)
             // Indeterminate until something has a length to measure against.
             .setProgress(100, percent, runningStates.isEmpty())
             .setOngoing(true)
@@ -229,6 +246,56 @@ class DownloadService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addAction(0, "Cancel", cancel)
             .build()
+    }
+
+    private fun mainActivityPendingIntent(): PendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        Intent(this, MainActivity::class.java)
+            .setAction(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun buildLiveUpdateNotification(
+        title: String,
+        text: String,
+        percent: Int,
+        indeterminate: Boolean,
+        cancel: PendingIntent,
+        contentIntent: PendingIntent,
+    ): Notification {
+        val style = Notification.ProgressStyle()
+        if (indeterminate) {
+            style.isProgressIndeterminate = true
+        } else {
+            style.progressSegments = listOf(Notification.ProgressStyle.Segment(100))
+            style.progress = percent.coerceIn(0, 100)
+        }
+
+        val builder = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_logo)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(contentIntent)
+            .setStyle(style)
+            .setProgress(100, percent, indeterminate)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .addAction(0, "Cancel", cancel)
+            .addExtras(
+                Bundle().apply {
+                    putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+                },
+            )
+
+        builder.setShortCriticalText(if (indeterminate) "..." else "$percent%")
+
+        return builder.build()
     }
 
     private fun createChannel() {
@@ -249,6 +316,7 @@ class DownloadService : Service() {
 
     private companion object {
         const val CHANNEL_ID = "downloads"
+        private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
 
         /** Distinct from playback's, which Media3 owns. */
         const val NOTIFICATION_ID = 0x8175

@@ -1,6 +1,9 @@
 package com.music.bitchord.playback
 
+import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
+import android.graphics.drawable.Icon
 import android.content.Context
 import android.content.Intent
 import android.media.AudioDeviceCallback
@@ -11,6 +14,7 @@ import android.media.MediaMetadataRetriever
 import android.media.audiofx.AudioEffect
 import android.net.Uri
 import android.widget.Toast
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
@@ -62,6 +66,7 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaLibraryService.LibraryParams
@@ -263,6 +268,9 @@ internal class ManualUpgradeThrottle(private val cooldownMs: Long) {
  */
 const val ACTION_QUEUE_DRAG = "com.music.bitchord.action.QUEUE_DRAG"
 const val EXTRA_QUEUE_DRAG_ACTIVE = "bitchord.queueDrag.active"
+const val ACTION_ISLAND_PAUSE = "com.music.bitchord.action.ISLAND_PAUSE"
+const val ACTION_ISLAND_NEXT = "com.music.bitchord.action.ISLAND_NEXT"
+private const val ISLAND_NOTIFICATION_ID = 0x8176
 
 /** A full first page for an explicitly requested station. */
 private const val INITIAL_STATION_TRACKS = 24
@@ -934,6 +942,7 @@ class PlaybackService : MediaLibraryService() {
                 clearDiscordPresence()
                 stopLyricsTicker()
             }
+            updateMusicIslandNotification(exoPlayer)
         }
 
         /**
@@ -1281,6 +1290,14 @@ class PlaybackService : MediaLibraryService() {
         ?.mediaItem
         ?.mediaId
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_ISLAND_PAUSE -> player?.pause()
+            ACTION_ISLAND_NEXT -> player?.seekToNextMediaItem()
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -1306,12 +1323,44 @@ class PlaybackService : MediaLibraryService() {
         measuredBitrateCache.clear()
         QualityUpgrade.forgetLastSession()
 
+        val defaultNotificationProvider = DefaultMediaNotificationProvider.Builder(this)
+            .setChannelId(CHANNEL_ID)
+            .setChannelName(R.string.playback_channel_name)
+            .build()
+            .apply { setSmallIcon(R.drawable.ic_notification_logo) }
+
         setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(CHANNEL_ID)
-                .setChannelName(R.string.playback_channel_name)
-                .build()
-                .apply { setSmallIcon(R.drawable.ic_notification_logo) },
+            object : MediaNotification.Provider {
+                override fun createNotification(
+                    mediaSession: MediaSession,
+                    customLayout: ImmutableList<CommandButton>,
+                    actionFactory: MediaNotification.ActionFactory,
+                    onNotificationChangedCallback: MediaNotification.Provider.Callback,
+                ): MediaNotification {
+                    val mediaNotification = defaultNotificationProvider.createNotification(
+                        mediaSession,
+                        customLayout,
+                        actionFactory,
+                        onNotificationChangedCallback,
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                        mediaNotification.notification.extras.putBoolean(
+                            EXTRA_REQUEST_PROMOTED_ONGOING,
+                            true,
+                        )
+                    }
+                    return mediaNotification
+                }
+
+                override fun handleCustomCommand(
+                    session: MediaSession,
+                    action: String,
+                    extras: Bundle,
+                ): Boolean = defaultNotificationProvider.handleCustomCommand(session, action, extras)
+
+                override fun getNotificationChannelInfo(): MediaNotification.Provider.NotificationChannelInfo =
+                    defaultNotificationProvider.getNotificationChannelInfo()
+            },
         )
 
         // Both the player screen and notification route their Shuffle command
@@ -1871,6 +1920,99 @@ class PlaybackService : MediaLibraryService() {
         // whose queue is already restored.
         CastController.ensureStarted(this)
         CastController.attach(castPlayback)
+    }
+
+    private fun updateMusicIslandNotification(player: Player?) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) return
+        val notificationManager = getSystemService(NotificationManager::class.java) ?: return
+
+        val exoPlayer = player ?: this.player
+        val isPlaying = exoPlayer?.isPlaying == true
+        val mediaItem = exoPlayer?.currentMediaItem
+
+        if (!isPlaying || mediaItem == null) {
+            notificationManager.cancel(ISLAND_NOTIFICATION_ID)
+            return
+        }
+
+        val song = mediaItem.toSong()
+        val title = song.title.ifEmpty { mediaItem.mediaMetadata.title?.toString().orEmpty().ifEmpty { "Playing" } }
+        val artist = song.artist.ifEmpty { mediaItem.mediaMetadata.artist?.toString().orEmpty().ifEmpty { "BitChord" } }
+
+        val durationMs = exoPlayer.duration
+        val positionMs = exoPlayer.currentPosition
+        val durationSec = if (durationMs > 0) (durationMs / 1000).toInt().coerceAtLeast(1) else 0
+        val positionSec = if (durationSec > 0) (positionMs / 1000).toInt().coerceIn(0, durationSec) else 0
+        val isIndeterminate = durationSec <= 0
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val pauseIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, PlaybackService::class.java).apply { action = ACTION_ISLAND_PAUSE },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val nextIntent = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, PlaybackService::class.java).apply { action = ACTION_ISLAND_NEXT },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val style = Notification.ProgressStyle()
+        if (!isIndeterminate) {
+            style.progressSegments = listOf(Notification.ProgressStyle.Segment(durationSec))
+            style.progress = positionSec
+        } else {
+            style.isProgressIndeterminate = true
+        }
+
+        val shortTitle = if (title.length > 12) title.take(11) + "…" else title
+        val shortCritical = "♪ $shortTitle"
+
+        val builder = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(artist)
+            .setSmallIcon(R.drawable.ic_notification_logo)
+            .setContentIntent(contentIntent)
+            .setStyle(style)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .addAction(
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, R.drawable.ic_widget_pause),
+                    "Pause",
+                    pauseIntent,
+                ).build(),
+            )
+            .addAction(
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, R.drawable.ic_widget_next),
+                    "Next",
+                    nextIntent,
+                ).build(),
+            )
+
+        builder.setShortCriticalText(shortCritical)
+        builder.addExtras(
+            Bundle().apply {
+                putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+                putInt("notification.superx.operation", 1)
+            },
+        )
+
+        notificationManager.notify(ISLAND_NOTIFICATION_ID, builder.build())
     }
 
     private fun newSessionPlayer(player: Player, crossfade: CrossfadeController) = SessionPlayer(
@@ -3830,7 +3972,10 @@ class PlaybackService : MediaLibraryService() {
         // onMediaItemTransition, and [adoptPlayer] calls this handler by hand.
         publishWidgetState()
         loadLyricsForCurrentTrack()
-        if (exoPlayer.isPlaying) startLyricsTicker()
+        if (exoPlayer.isPlaying) {
+            startLyricsTicker()
+            updateMusicIslandNotification(exoPlayer)
+        }
     }
 
     /** The background hunt for a better copy of whatever is playing. */
@@ -6703,6 +6848,7 @@ class PlaybackService : MediaLibraryService() {
                     // repeat: it returns immediately unless the track is
                     // pending and nothing is already looking.
                     lookForBetterCopy(player)
+                    updateMusicIslandNotification(player)
                 }
                 delay(PROGRESS_SAMPLE_MS)
             }
@@ -7808,6 +7954,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         if (AppSettings.stopOnTaskRemoved.value) {
+            getSystemService(NotificationManager::class.java)?.cancel(ISLAND_NOTIFICATION_ID)
             // A receiver left playing with nothing on the phone to drive it
             // would run out its few queued tracks and stop on its own anyway;
             // better to say so now than leave the TV on a casting screen.
@@ -7821,6 +7968,7 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        getSystemService(NotificationManager::class.java)?.cancel(ISLAND_NOTIFICATION_ID)
         WearBridge.attachStreams(null)
         WearBridge.releaseSpeaker()
         // Let go of the receiver's player but leave its session alone: a
@@ -9518,6 +9666,7 @@ class PlaybackService : MediaLibraryService() {
         const val STREAM_INFO_BYTES = 34
 
         const val CHANNEL_ID = "bitchord_playback"
+        private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
         const val SESSION_ID = "BitChordPlayback"
 
         /** How often played-seconds are sampled off the player. */

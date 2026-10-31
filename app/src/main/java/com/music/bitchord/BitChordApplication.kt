@@ -1,6 +1,8 @@
 package com.music.bitchord
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import androidx.annotation.OptIn
 import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -58,6 +60,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
     @kotlin.OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate() {
         super.onCreate()
+        createNotificationChannels()
         // The player is drawn by the shared UI module; this is what it reads
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()
@@ -303,6 +306,40 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
             secret = secret,
             sessionKey = sessionKey,
         )
+    }
+
+    private fun createNotificationChannels() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val downloadChannel = NotificationChannel(
+            "downloads",
+            "Downloads",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "Songs being saved to your Music folder"
+            setShowBadge(false)
+        }
+        val playbackChannel = NotificationChannel(
+            "bitchord_playback",
+            "Music Playback",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "Music playback controls"
+        }
+        val remindersChannel = NotificationChannel(
+            "reminders",
+            "Reminders",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "App and music reminders"
+        }
+        val liveChannel = NotificationChannel(
+            "live_updates",
+            "Live Activities & Island",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "Live playback and download updates on Origin Island"
+        }
+        manager.createNotificationChannels(listOf(downloadChannel, playbackChannel, remindersChannel, liveChannel))
     }
 
     companion object {

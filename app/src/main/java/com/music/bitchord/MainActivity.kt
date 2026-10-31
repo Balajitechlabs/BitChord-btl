@@ -1,6 +1,8 @@
 package com.music.bitchord
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -394,6 +396,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        setupNotificationChannels()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time BitChordApp first reads it.
         PlayerDeepLink.consume(intent)
@@ -492,6 +500,41 @@ class MainActivity : AppCompatActivity() {
                 View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
             }
         }
+    }
+
+    private fun setupNotificationChannels() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val downloadChannel = NotificationChannel(
+            "downloads",
+            "Downloads",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "Songs being saved to your Music folder"
+            setShowBadge(false)
+        }
+        val playbackChannel = NotificationChannel(
+            "bitchord_playback",
+            getString(R.string.playback_channel_name),
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "Music playback controls"
+            setShowBadge(false)
+        }
+        val remindersChannel = NotificationChannel(
+            "reminders",
+            "Reminders",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "App and music reminders"
+        }
+        val liveChannel = NotificationChannel(
+            "live_updates",
+            "Live Activities & Island",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "Live playback and download updates on Origin Island"
+        }
+        manager.createNotificationChannels(listOf(downloadChannel, playbackChannel, remindersChannel, liveChannel))
     }
 
     /**
