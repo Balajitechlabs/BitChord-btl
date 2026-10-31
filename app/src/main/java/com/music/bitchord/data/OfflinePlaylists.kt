@@ -83,6 +83,17 @@ object OfflinePlaylists {
         }
     }
 
+    fun exportRaw(): String? {
+        if (!this::prefs.isInitialized) return null
+        return prefs.getString(KEY_PLAYLISTS, null)
+    }
+
+    fun importRaw(raw: String) {
+        if (!this::prefs.isInitialized) return
+        prefs.edit().putString(KEY_PLAYLISTS, raw).apply()
+        publish(load())
+    }
+
     fun isOfflinePlaylist(browseId: String?): Boolean = browseId?.startsWith(PREFIX) == true
 
     fun isLikedPage(browseId: String?): Boolean = browseId == PREFIX + LIKED_ID

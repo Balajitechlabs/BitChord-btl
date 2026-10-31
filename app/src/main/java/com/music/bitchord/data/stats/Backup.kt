@@ -5,8 +5,11 @@ import android.net.Uri
 import com.music.bitchord.BitChordApplication
 import com.music.bitchord.BuildConfig
 import com.music.bitchord.auth.ExportedAuth
+import com.music.bitchord.data.OfflinePlaylists
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.SearchHistory
+import com.music.bitchord.data.spotify.LocalPlaylistStore
+import com.music.bitchord.playback.OriginalVersion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -73,6 +76,9 @@ object Backup {
                 }.toMap(),
                 listening = buckets,
                 auth = BitChordApplication.authStore.exportAuth(),
+                localPlaylists = LocalPlaylistStore.exportRaw(),
+                offlinePlaylists = OfflinePlaylists.exportRaw(),
+                originalVersions = OriginalVersion.exportList(),
             )
             val text = json.encodeToString(BackupFile.serializer(), file)
             context.contentResolver.openOutputStream(target, "wt")
@@ -106,6 +112,15 @@ object Backup {
             AppSettings.importPrefs(file.settings.mapValues { it.value.decoded() })
             file.auth?.let {
                 BitChordApplication.authStore.importAuth(it)
+            }
+            file.localPlaylists?.let {
+                LocalPlaylistStore.importRaw(it)
+            }
+            file.offlinePlaylists?.let {
+                OfflinePlaylists.importRaw(it)
+            }
+            if (file.originalVersions.isNotEmpty()) {
+                OriginalVersion.importAll(file.originalVersions)
             }
             // Shares AppSettings' preference file, so it has already been
             // overwritten by the line above — it just doesn't know yet.
@@ -146,6 +161,9 @@ object Backup {
         val settings: Map<String, PrefValue> = emptyMap(),
         val listening: List<StoredBucket> = emptyList(),
         val auth: ExportedAuth? = null,
+        val localPlaylists: String? = null,
+        val offlinePlaylists: String? = null,
+        val originalVersions: List<String> = emptyList(),
     )
 
     /** One preference, with the type it has to be restored as. */

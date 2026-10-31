@@ -72,6 +72,14 @@ object OriginalVersion {
         write(_pinned.value - videoId)
     }
 
+    fun exportList(): List<String> = _pinned.value.toList()
+
+    fun importAll(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val merged = _pinned.value + ids
+        write(merged)
+    }
+
     private fun write(ids: Set<String>) {
         _pinned.value = ids
         // The flow is updated either way: a unit test or a not-yet-initialised
