@@ -54,11 +54,11 @@ android {
         create("dev") {
             dimension = "env"
             applicationId = "com.dev.bitchord"
-            resValue("string", "app_name", "BitChord Dev")
+            resValue("string", "app_name", "btl-music")
         }
         create("prod") {
             dimension = "env"
-            resValue("string", "app_name", "BitChord")
+            resValue("string", "app_name", "btl-music")
         }
     }
 
@@ -102,9 +102,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Null without a keystore, like the phone: an unsigned APK rather
-            // than a build failure.
-            signingConfig = signingConfigs.findByName("release")
+            // Falls back to debug signing when no release keystore is present so
+            // the stable build can be bundled and paired on test devices.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

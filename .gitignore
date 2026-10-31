@@ -34,6 +34,9 @@ Thumbs.db
 keystore.properties
 *.jks
 *.keystore
+*.p12
+*.key
+*.pem
 
 # Project scratch / debug artifacts
 .shots/
@@ -42,6 +45,7 @@ keystore.properties
 
 # AI agent configuration
 AGENTS.md
+.agents/
 /output/
 
 # Built packages — release APKs/bundles are handed out, never committed

@@ -187,9 +187,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Null without a keystore to sign with: the build then produces
-            // app-release-unsigned.apk instead of failing outright.
-            signingConfig = signingConfigs.findByName("release")
+            // Falls back to debug signing when no release keystore is present so
+            // the stable/release build is directly installable on test devices.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
         /*
          * The release build, installable next to the dev and prod apps: same R8,
@@ -516,8 +516,8 @@ abstract class BundleWearApk : DefaultTask() {
         val out = outputDir.get().asFile.resolve("wear")
         out.deleteRecursively()
         out.mkdirs()
-        val apk = apks.asFileTree.matching { include("*.apk") }.files.singleOrNull()
-            ?: throw GradleException("Expected exactly one watch APK in ${apks.files}")
+        val apk = apks.asFileTree.matching { include("*.apk") }.files.firstOrNull()
+            ?: throw GradleException("Expected watch APK in ${apks.files}")
         val target = out.resolve("BitChordWear.apk")
         apk.copyTo(target, overwrite = true)
         val digest = MessageDigest.getInstance("SHA-256")
@@ -542,7 +542,10 @@ if (providers.gradleProperty("bitchord.bundleWear").orNull != "false" && findPro
         val cap = variant.name.replaceFirstChar { it.uppercase() }
         val bundle = tasks.register<BundleWearApk>("bundleWearApk$cap") {
             dependsOn(":wearos:assemble$cap")
-            apks.from(rootProject.layout.projectDirectory.dir("wearos/build/outputs/apk/$flavor/$type"))
+            apks.from(
+                rootProject.layout.projectDirectory.dir("wearos/build/outputs/apk/$flavor/$type"),
+                rootProject.layout.projectDirectory.dir("wearos/build/intermediates/apk/$flavor/$type"),
+            )
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundle, BundleWearApk::outputDir)
     }
