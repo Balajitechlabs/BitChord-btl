@@ -57,6 +57,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
@@ -3117,6 +3118,32 @@ internal fun rememberLyricsTranslation(
         onDispose {
             translationJob?.cancel()
             romanizationJob?.cancel()
+        }
+    }
+    val autoRomanize = PlayerSettings.autoRomanizeLyrics.collectAsState().value
+    LaunchedEffect(trackId, translationLanguage, lyrics, autoRomanize) {
+        val source = lyrics.orEmpty()
+        if (autoRomanize && source.isNotEmpty() && romanizationState is LyricsTranslationUiState.Idle && lyricsDisplayMode == LyricsDisplayMode.Original) {
+            romanizationState = LyricsTranslationUiState.Loading
+            when (
+                val result = PlayerPlatform.host.romanizeLyrics(
+                    trackId = trackId,
+                    lines = source,
+                    targetLanguageTag = translationLanguage,
+                )
+            ) {
+                is LyricsRomanizationResult.Romanized -> {
+                    romanizationState = LyricsTranslationUiState.Ready(result.lines)
+                    lyricsDisplayMode = LyricsDisplayMode.Romanized
+                    translationTransition++
+                }
+                LyricsRomanizationResult.AlreadyRomanized -> {
+                    romanizationState = LyricsTranslationUiState.SameLanguage
+                }
+                LyricsRomanizationResult.Unavailable -> {
+                    romanizationState = LyricsTranslationUiState.Idle
+                }
+            }
         }
     }
     val displayedLyrics = when (lyricsDisplayMode) {

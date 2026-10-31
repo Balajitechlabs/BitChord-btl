@@ -111,6 +111,7 @@ import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.lyrics.EmbeddedLyrics
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsRepository
+import com.music.bitchord.data.lyrics.LyricsTranslation
 import com.music.bitchord.data.model.NOTIFICATION_ART_PX
 import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.SearchFilter
@@ -270,6 +271,7 @@ const val ACTION_QUEUE_DRAG = "com.music.bitchord.action.QUEUE_DRAG"
 const val EXTRA_QUEUE_DRAG_ACTIVE = "bitchord.queueDrag.active"
 const val ACTION_ISLAND_PAUSE = "com.music.bitchord.action.ISLAND_PAUSE"
 const val ACTION_ISLAND_NEXT = "com.music.bitchord.action.ISLAND_NEXT"
+const val ACTION_ISLAND_TOGGLE_LYRICS = "com.music.bitchord.action.ISLAND_TOGGLE_LYRICS"
 private const val ISLAND_NOTIFICATION_ID = 0x8176
 
 /** A full first page for an explicitly requested station. */
@@ -784,11 +786,13 @@ class PlaybackService : MediaLibraryService() {
      * being backgrounded and the screen going off — see [PartySync].
      */
     private var partySync: PartySync? = null
+    private var sessionPlayer: SessionPlayer? = null
 
     /** Commands exposed as the secondary buttons on the media notification. */
     private val boundedContextCommand = SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY)
     private val clearBoundedContextCommand = SessionCommand(ACTION_CLEAR_BOUNDED_CONTEXT, Bundle.EMPTY)
     private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
+    private val toggleIslandLyricsCommand = SessionCommand(ACTION_ISLAND_TOGGLE_LYRICS, Bundle.EMPTY)
     private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
     private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
@@ -1294,6 +1298,12 @@ class PlaybackService : MediaLibraryService() {
         when (intent?.action) {
             ACTION_ISLAND_PAUSE -> player?.pause()
             ACTION_ISLAND_NEXT -> player?.seekToNextMediaItem()
+            ACTION_ISLAND_TOGGLE_LYRICS -> {
+                AppSettings.setIslandLyricsEnabled(!AppSettings.islandLyricsEnabled.value)
+                refreshCustomLayouts()
+                sessionPlayer?.refreshMetadata()
+                updateMusicIslandNotification(player)
+            }
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -1922,7 +1932,7 @@ class PlaybackService : MediaLibraryService() {
         CastController.attach(castPlayback)
     }
 
-    private fun updateMusicIslandNotification(player: Player?) {
+    private fun updateMusicIslandNotification(player: Player?, currentLyric: String? = null) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) return
         val notificationManager = getSystemService(NotificationManager::class.java) ?: return
 
@@ -1967,6 +1977,12 @@ class PlaybackService : MediaLibraryService() {
             Intent(this, PlaybackService::class.java).apply { action = ACTION_ISLAND_NEXT },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val toggleLyricsIntent = PendingIntent.getService(
+            this,
+            3,
+            Intent(this, PlaybackService::class.java).apply { action = ACTION_ISLAND_TOGGLE_LYRICS },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         val style = Notification.ProgressStyle()
         if (!isIndeterminate) {
@@ -1976,12 +1992,20 @@ class PlaybackService : MediaLibraryService() {
             style.isProgressIndeterminate = true
         }
 
-        val shortTitle = if (title.length > 12) title.take(11) + "…" else title
-        val shortCritical = "♪ $shortTitle"
+        val lyricsMode = AppSettings.islandLyricsEnabled.value
+        val rawLyric = currentLyric ?: lastPublishedSubtitle
+        val lyricToDisplay = if (lyricsMode && rawLyric != null && rawLyric.startsWith("♪ ") && rawLyric.length > 2) {
+            rawLyric.trim()
+        } else {
+            null
+        }
 
-        val builder = Notification.Builder(this, CHANNEL_ID)
+        val shortTitle = if (title.length > 12) title.take(11) + "…" else title
+        val shortCritical = lyricToDisplay ?: "♪ $shortTitle"
+
+        val builder = Notification.Builder(this, "live_updates")
             .setContentTitle(title)
-            .setContentText(artist)
+            .setContentText(lyricToDisplay ?: artist)
             .setSmallIcon(R.drawable.ic_notification_logo)
             .setContentIntent(contentIntent)
             .setStyle(style)
@@ -2003,6 +2027,13 @@ class PlaybackService : MediaLibraryService() {
                     nextIntent,
                 ).build(),
             )
+            .addAction(
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, R.drawable.ic_notification_logo),
+                    if (lyricsMode) "Title" else "Lyrics",
+                    toggleLyricsIntent,
+                ).build(),
+            )
 
         builder.setShortCriticalText(shortCritical)
         builder.addExtras(
@@ -2015,14 +2046,18 @@ class PlaybackService : MediaLibraryService() {
         notificationManager.notify(ISLAND_NOTIFICATION_ID, builder.build())
     }
 
-    private fun newSessionPlayer(player: Player, crossfade: CrossfadeController) = SessionPlayer(
-        player,
-        crossfade,
-        onUserIntent = { partySync?.onLocalIntent() },
-        deferPlayToParty = { partySync?.shouldDeferPlay() == true },
-        lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
-        cast = speakers,
-    ) { lastPublishedSubtitle }
+    private fun newSessionPlayer(player: Player, crossfade: CrossfadeController): SessionPlayer {
+        val sp = SessionPlayer(
+            player,
+            crossfade,
+            onUserIntent = { partySync?.onLocalIntent() },
+            deferPlayToParty = { partySync?.shouldDeferPlay() == true },
+            lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
+            cast = speakers,
+        ) { lastPublishedSubtitle }
+        sessionPlayer = sp
+        return sp
+    }
 
     /**
      * The stream a Cast receiver can open for [item], or null when there is none
@@ -2193,7 +2228,7 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    /** Favorite and Shuffle: the only actions shown on the phone notification. */
+    /** Favorite, Island Lyrics toggle, and Shuffle: the actions shown on the phone notification and Island. */
     private fun notificationButtons(): List<CommandButton> {
         val liked = isLiked(player?.currentMediaItem)
         // The icon constant tells controllers like Android Auto what the button
@@ -2206,6 +2241,14 @@ class PlaybackService : MediaLibraryService() {
             .setSessionCommand(favoriteCommand)
             .setDisplayName("Favorite")
             .build()
+
+        val lyricsEnabled = AppSettings.islandLyricsEnabled.value
+        val lyricsToggle = CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+            .setCustomIconResId(if (lyricsEnabled) R.drawable.ic_notification_logo else R.drawable.ic_notification_star)
+            .setSessionCommand(toggleIslandLyricsCommand)
+            .setDisplayName(if (lyricsEnabled) "Lyrics: ON" else "Lyrics: OFF")
+            .build()
+
         val shuffleEnabled = QueueShuffle.enabled.value
         val shuffle = CommandButton.Builder(
             if (shuffleEnabled) {
@@ -2217,7 +2260,7 @@ class PlaybackService : MediaLibraryService() {
             .setSessionCommand(shuffleCommand)
             .setDisplayName(if (shuffleEnabled) "Shuffle off" else "Shuffle on")
             .build()
-        return listOfNotNull(favorite, shuffle)
+        return listOfNotNull(favorite, lyricsToggle, shuffle)
     }
 
     /** Adds Radio/Revert for controllers with room for them, e.g. Android Auto. */
@@ -3971,6 +4014,8 @@ class PlaybackService : MediaLibraryService() {
         // Covers crossfades too: a blended advance never reaches
         // onMediaItemTransition, and [adoptPlayer] calls this handler by hand.
         publishWidgetState()
+        lastPublishedSubtitle = null
+        sessionPlayer?.updateLyric(null)
         loadLyricsForCurrentTrack()
         if (exoPlayer.isPlaying) {
             startLyricsTicker()
@@ -7462,8 +7507,9 @@ class PlaybackService : MediaLibraryService() {
                 AppSettings.lyricsSources,
                 AppSettings.lyricsSourceOrder,
                 AppSettings.prioritizeSyllableSync,
-            ) { synced, sources, order, prio ->
-                synced to sources
+                AppSettings.autoRomanizeLyrics,
+            ) { synced, sources, order, prio, romanize ->
+                Triple(synced, sources, romanize)
             }.distinctUntilChanged().collect {
                 loadLyricsForCurrentTrack()
             }
@@ -8102,8 +8148,19 @@ class PlaybackService : MediaLibraryService() {
                 )
                 lines = found?.lines
             }
+            var effectiveLines = lines
+            if (lines != null && AppSettings.autoRomanizeLyrics.value) {
+                val romanized = LyricsTranslation.romanize(
+                    trackId = currentSong.videoId,
+                    lines = lines,
+                    targetLanguageTag = AppSettings.translationLanguage.value,
+                )
+                if (romanized is LyricsTranslation.RomanizationResult.Romanized) {
+                    effectiveLines = romanized.lines
+                }
+            }
             withContext(Dispatchers.Main) {
-                serviceLyrics = lines
+                serviceLyrics = effectiveLines
                 if (player?.isPlaying == true) {
                     updateLyricSubtitle()
                 }
@@ -8159,6 +8216,10 @@ class PlaybackService : MediaLibraryService() {
                 .buildUpon()
                 .setSubtitle(subtitleText)
                 .build()
+            sessionPlayer?.updateLyric(subtitleText)
+            if (AppSettings.islandLyricsEnabled.value && exoPlayer.isPlaying) {
+                updateMusicIslandNotification(exoPlayer, currentLyric = subtitleText)
+            }
         }
     }
 
@@ -8696,11 +8757,30 @@ class PlaybackService : MediaLibraryService() {
             super.clearMediaItems()
         }
 
+        var currentLyric: String? = null
+
+        fun updateLyric(lyric: String?) {
+            if (currentLyric == lyric) return
+            currentLyric = lyric
+            refreshMetadata()
+        }
+
+        fun refreshMetadata() {
+            val meta = mediaMetadata
+            listeners.forEach { it.onMediaMetadataChanged(meta) }
+            val events = Player.Events(FlagSet.Builder().add(Player.EVENT_MEDIA_METADATA_CHANGED).build())
+            listeners.forEach { it.onEvents(this, events) }
+        }
+
         override fun getMediaMetadata(): MediaMetadata {
             val base = wrappedPlayer.mediaMetadata
-            val subtitle = getSubtitle()
-            return if (!subtitle.isNullOrBlank()) {
-                base.buildUpon().setSubtitle(subtitle).build()
+            val lyric = currentLyric ?: getSubtitle()
+            val showLyrics = AppSettings.islandLyricsEnabled.value && !lyric.isNullOrBlank() && lyric.startsWith("♪ ")
+            return if (showLyrics) {
+                base.buildUpon()
+                    .setArtist(lyric)
+                    .setSubtitle(lyric)
+                    .build()
             } else {
                 base
             }
@@ -8775,6 +8855,7 @@ class PlaybackService : MediaLibraryService() {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(favoriteCommand)
+                .add(toggleIslandLyricsCommand)
                 .add(boundedContextCommand)
                 .add(clearBoundedContextCommand)
                 .add(autoplayCommand)
@@ -8816,6 +8897,16 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_CLEAR_BOUNDED_CONTEXT -> clearBoundedContext()
                 ACTION_TOGGLE_AUTOPLAY -> toggleAutoplayFromNotification()
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
+                ACTION_ISLAND_TOGGLE_LYRICS -> {
+                    val newState = !AppSettings.islandLyricsEnabled.value
+                    AppSettings.setIslandLyricsEnabled(newState)
+                    refreshCustomLayouts()
+                    sessionPlayer?.refreshMetadata()
+                    val exoPlayer = player
+                    if (exoPlayer != null) {
+                        updateMusicIslandNotification(exoPlayer)
+                    }
+                }
                 ACTION_START_STATION -> startStationFromSession()
                 ACTION_REVERT_TO_ORIGINAL -> revertCurrentToOriginal()
                 ACTION_SWAP_TO_VERSION -> swapCurrentToVersion(args)

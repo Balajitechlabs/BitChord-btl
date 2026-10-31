@@ -760,6 +760,8 @@ object AppSettings {
     val listenBrainzToken = MutableStateFlow("")
     val listenBrainzPrimaryArtistOnly = MutableStateFlow(false)
     val spotifySpdcToken = MutableStateFlow("")
+    val islandLyricsEnabled = MutableStateFlow(true)
+    val autoRomanizeLyrics = MutableStateFlow(true)
 
     // ── Discord Rich Presence ───────────────────────────────────────────
 
@@ -1097,6 +1099,8 @@ object AppSettings {
         listenBrainzToken.value = prefs.getString(KEY_LISTENBRAINZ_TOKEN, "").orEmpty()
         listenBrainzPrimaryArtistOnly.value = prefs.getBoolean(KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY, false)
         spotifySpdcToken.value = prefs.getString(KEY_SPOTIFY_SPDC_TOKEN, "").orEmpty()
+        islandLyricsEnabled.value = prefs.getBoolean(KEY_ISLAND_LYRICS_ENABLED, true)
+        autoRomanizeLyrics.value = prefs.getBoolean(KEY_AUTO_ROMANIZE_LYRICS, true)
         replayGenres.value = prefs.getBoolean(KEY_REPLAY_GENRES, true)
         filterNonMusicAudio.value = prefs.getBoolean(KEY_FILTER_NON_MUSIC_AUDIO, true)
         localMusicSort.value = readLocalMusicSort(KEY_LOCAL_MUSIC_SORT)
@@ -1777,6 +1781,16 @@ object AppSettings {
         SpotifyToken.invalidate()
     }
 
+    fun setIslandLyricsEnabled(value: Boolean) {
+        islandLyricsEnabled.value = value
+        prefs.edit().putBoolean(KEY_ISLAND_LYRICS_ENABLED, value).apply()
+    }
+
+    fun setAutoRomanizeLyrics(value: Boolean) {
+        autoRomanizeLyrics.value = value
+        prefs.edit().putBoolean(KEY_AUTO_ROMANIZE_LYRICS, value).apply()
+    }
+
     fun setLastfmScrobbleEnabled(value: Boolean) {
         lastfmScrobbleEnabled.value = value
         if (!value) lastfmNowPlaying.value = false
@@ -2363,6 +2377,8 @@ object AppSettings {
     private const val KEY_LISTENBRAINZ_TOKEN = "listenbrainz_token"
     private const val KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY = "listenbrainz_primary_artist_only"
     private const val KEY_SPOTIFY_SPDC_TOKEN = "spotify_spdc_token"
+    private const val KEY_ISLAND_LYRICS_ENABLED = "island_lyrics_enabled"
+    private const val KEY_AUTO_ROMANIZE_LYRICS = "auto_romanize_lyrics"
 
     private const val KEY_DISCORD_USERNAME = "discord_username"
     private const val KEY_DISCORD_NAME = "discord_name"

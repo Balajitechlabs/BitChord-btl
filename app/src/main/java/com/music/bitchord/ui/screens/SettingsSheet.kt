@@ -1271,6 +1271,38 @@ fun SettingsScreen(
                     onClick = { AppSettings.setSyncedLyrics(!syncedLyrics) },
                 )
             }
+            val islandLyricsTitle = "Origin Island live lyrics"
+            row(islandLyricsTitle, "island", "lyrics", "status bar") {
+                val islandLyrics by AppSettings.islandLyricsEnabled.collectAsStateWithLifecycle()
+                SettingsRow(
+                    icon = SfIcons.Notes,
+                    title = islandLyricsTitle,
+                    subtitle = "Scroll real-time synchronized lyrics across the Origin Island punch hole",
+                    trailing = {
+                        IosSwitch(
+                            checked = islandLyrics,
+                            onCheckedChange = AppSettings::setIslandLyricsEnabled,
+                        )
+                    },
+                    onClick = { AppSettings.setIslandLyricsEnabled(!islandLyrics) },
+                )
+            }
+            val autoRomanizeTitle = "Auto-romanize pronunciation"
+            row(autoRomanizeTitle, "lyrics", "pronunciation", "romanize", "romaji") {
+                val autoRomanize by AppSettings.autoRomanizeLyrics.collectAsStateWithLifecycle()
+                SettingsRow(
+                    icon = SfIcons.Translate,
+                    title = autoRomanizeTitle,
+                    subtitle = "Show Latin alphabet pronunciation (Romaji, Pinyin, transliteration) by default for non-Latin songs",
+                    trailing = {
+                        IosSwitch(
+                            checked = autoRomanize,
+                            onCheckedChange = AppSettings::setAutoRomanizeLyrics,
+                        )
+                    },
+                    onClick = { AppSettings.setAutoRomanizeLyrics(!autoRomanize) },
+                )
+            }
             // Nothing to choose between while the feature is off, and the
             // sources are third-party services being reached on the user's
             // connection — which is the part worth being able to narrow.
