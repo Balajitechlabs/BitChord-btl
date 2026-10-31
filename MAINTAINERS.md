@@ -13,7 +13,17 @@ Maintainers oversee project direction, repository maintenance, review and mergin
 ## Contributors
 
 This list is automatically generated from GitHub repository contributor data.
+# 1. Update clean main from upstream
+git checkout main
+git pull upstream main
+git push origin main
 
+# 2. Rebase your Vivo Island branch onto the new update
+git checkout vivo-island
+git rebase main
+
+# 3. Build the fresh APK!
+./gradlew :app:assembleDevDebug -Pandroid.injected.build.abi=arm64-v8a
 <!-- BEGIN CONTRIBUTORS -->
 - [@kushagrasinghx](https://github.com/kushagrasinghx)
 - [@Galaxyyss](https://github.com/Galaxyyss)
