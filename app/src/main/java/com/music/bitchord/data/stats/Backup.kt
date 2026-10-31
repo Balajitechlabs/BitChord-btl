@@ -2,7 +2,9 @@ package com.music.bitchord.data.stats
 
 import android.content.Context
 import android.net.Uri
+import com.music.bitchord.BitChordApplication
 import com.music.bitchord.BuildConfig
+import com.music.bitchord.auth.ExportedAuth
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.SearchHistory
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +72,7 @@ object Backup {
                     PrefValue.of(value)?.let { key to it }
                 }.toMap(),
                 listening = buckets,
+                auth = BitChordApplication.authStore.exportAuth(),
             )
             val text = json.encodeToString(BackupFile.serializer(), file)
             context.contentResolver.openOutputStream(target, "wt")
@@ -101,6 +104,9 @@ object Backup {
 
             ListeningStats.importAll(file.listening)
             AppSettings.importPrefs(file.settings.mapValues { it.value.decoded() })
+            file.auth?.let {
+                BitChordApplication.authStore.importAuth(it)
+            }
             // Shares AppSettings' preference file, so it has already been
             // overwritten by the line above — it just doesn't know yet.
             SearchHistory.reload()
@@ -139,6 +145,7 @@ object Backup {
         val exportedAt: String = "",
         val settings: Map<String, PrefValue> = emptyMap(),
         val listening: List<StoredBucket> = emptyList(),
+        val auth: ExportedAuth? = null,
     )
 
     /** One preference, with the type it has to be restored as. */

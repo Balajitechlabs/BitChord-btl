@@ -2,6 +2,7 @@ package com.music.bitchord.auth
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.serialization.Serializable
 
 /**
  * Encrypted-at-rest storage for credentials.
@@ -196,6 +197,44 @@ class AuthStore(context: Context) {
         BrowserSession.clearGoogleCookies()
     }
 
+    fun exportAuth(): ExportedAuth {
+        val currentSessions = sessions
+        return ExportedAuth(
+            cookie = cookie,
+            sessionsJson = if (currentSessions.isNotEmpty()) currentSessions.toJson() else null,
+            activeAccountId = activeAccountId,
+            activeProfileId = activeProfileId,
+            channelPageId = channelPageId,
+            channelDataSyncId = channelDataSyncId,
+            channelName = channelName,
+            channelAuthUser = channelAuthUser,
+            discordToken = discordToken,
+            webdavPassword = webdavPassword,
+            smbPassword = smbPassword,
+        )
+    }
+
+    fun importAuth(auth: ExportedAuth) {
+        auth.cookie?.let { cookie = it }
+        auth.sessionsJson?.let { raw ->
+            val imported = sessionsFromJson(raw)
+            if (imported.isNotEmpty()) {
+                replaceSessions(imported)
+            }
+        }
+        auth.activeAccountId?.let { activeAccountId = it }
+        auth.activeProfileId?.let { activeProfileId = it }
+        selectChannel(
+            pageId = auth.channelPageId,
+            dataSyncId = auth.channelDataSyncId,
+            name = auth.channelName,
+            authUser = auth.channelAuthUser,
+        )
+        auth.discordToken?.let { discordToken = it }
+        auth.webdavPassword?.let { webdavPassword = it }
+        auth.smbPassword?.let { smbPassword = it }
+    }
+
     companion object {
         /**
          * Whether a cookie header carries a secret Innertube requests can be
@@ -232,3 +271,19 @@ class AuthStore(context: Context) {
         private const val KEY_SMB_PASSWORD = "smb_password"
     }
 }
+
+/** Exportable container for authentication sessions and tokens in backup files. */
+@Serializable
+data class ExportedAuth(
+    val cookie: String? = null,
+    val sessionsJson: String? = null,
+    val activeAccountId: String? = null,
+    val activeProfileId: String? = null,
+    val channelPageId: String? = null,
+    val channelDataSyncId: String? = null,
+    val channelName: String? = null,
+    val channelAuthUser: String? = null,
+    val discordToken: String? = null,
+    val webdavPassword: String? = null,
+    val smbPassword: String? = null,
+)

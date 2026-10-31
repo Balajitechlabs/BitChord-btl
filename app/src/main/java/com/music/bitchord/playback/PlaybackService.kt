@@ -2243,8 +2243,10 @@ class PlaybackService : MediaLibraryService() {
             .build()
 
         val lyricsEnabled = AppSettings.islandLyricsEnabled.value
-        val lyricsToggle = CommandButton.Builder(CommandButton.ICON_UNDEFINED)
-            .setCustomIconResId(if (lyricsEnabled) R.drawable.ic_notification_logo else R.drawable.ic_notification_star)
+        val lyricsToggle = CommandButton.Builder(
+            if (lyricsEnabled) CommandButton.ICON_SUBTITLES else CommandButton.ICON_SUBTITLES_OFF,
+        )
+            .setCustomIconResId(if (lyricsEnabled) R.drawable.ic_notification_lyrics else R.drawable.ic_notification_lyrics_off)
             .setSessionCommand(toggleIslandLyricsCommand)
             .setDisplayName(if (lyricsEnabled) "Lyrics: ON" else "Lyrics: OFF")
             .build()

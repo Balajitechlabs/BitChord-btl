@@ -2174,7 +2174,7 @@ object AppSettings {
      */
     fun exportPrefs(): Map<String, Any?> {
         if (!this::prefs.isInitialized) return emptyMap()
-        return prefs.all.filterKeys { it !in SECRETS && it !in DEVICE_LOCAL }
+        return prefs.all.filterKeys { it !in DEVICE_LOCAL }
     }
 
     /**
@@ -2182,16 +2182,14 @@ object AppSettings {
      *
      * A replace, not a merge: a partial restore leaves a device holding half of
      * one configuration and half of another, which is the one outcome nobody
-     * asked for. Keys in [SECRETS] survive untouched — they were never in the
-     * file being restored from, and clearing them would sign the user out of
-     * services the backup has nothing to say about.
+     * asked for. Device-local keys survive untouched.
      */
     fun importPrefs(values: Map<String, Any?>) {
         if (!this::prefs.isInitialized) return
-        val kept = prefs.all.filterKeys { it in SECRETS || it in DEVICE_LOCAL }
+        val kept = prefs.all.filterKeys { it in DEVICE_LOCAL }
         prefs.edit().apply {
             clear()
-            val incoming = values.filterKeys { it !in SECRETS && it !in DEVICE_LOCAL }
+            val incoming = values.filterKeys { it !in DEVICE_LOCAL }
             (kept + incoming).forEach { (key, value) ->
                 when (value) {
                     is Boolean -> putBoolean(key, value)
