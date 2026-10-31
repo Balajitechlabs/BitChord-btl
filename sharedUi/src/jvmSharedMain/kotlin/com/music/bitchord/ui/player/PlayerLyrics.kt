@@ -3123,27 +3123,35 @@ internal fun rememberLyricsTranslation(
     val autoRomanize = PlayerSettings.autoRomanizeLyrics.collectAsState().value
     LaunchedEffect(trackId, translationLanguage, lyrics, autoRomanize) {
         val source = lyrics.orEmpty()
-        if (autoRomanize && source.isNotEmpty() && romanizationState is LyricsTranslationUiState.Idle && lyricsDisplayMode == LyricsDisplayMode.Original) {
-            romanizationState = LyricsTranslationUiState.Loading
-            when (
-                val result = PlayerPlatform.host.romanizeLyrics(
-                    trackId = trackId,
-                    lines = source,
-                    targetLanguageTag = translationLanguage,
-                )
-            ) {
-                is LyricsRomanizationResult.Romanized -> {
-                    romanizationState = LyricsTranslationUiState.Ready(result.lines)
-                    lyricsDisplayMode = LyricsDisplayMode.Romanized
-                    translationTransition++
-                }
-                LyricsRomanizationResult.AlreadyRomanized -> {
-                    romanizationState = LyricsTranslationUiState.SameLanguage
-                }
-                LyricsRomanizationResult.Unavailable -> {
-                    romanizationState = LyricsTranslationUiState.Idle
+        if (autoRomanize && source.isNotEmpty()) {
+            if (romanizationState is LyricsTranslationUiState.Ready && lyricsDisplayMode == LyricsDisplayMode.Original) {
+                lyricsDisplayMode = LyricsDisplayMode.Romanized
+                translationTransition++
+            } else if (romanizationState is LyricsTranslationUiState.Idle && lyricsDisplayMode == LyricsDisplayMode.Original) {
+                romanizationState = LyricsTranslationUiState.Loading
+                when (
+                    val result = PlayerPlatform.host.romanizeLyrics(
+                        trackId = trackId,
+                        lines = source,
+                        targetLanguageTag = translationLanguage,
+                    )
+                ) {
+                    is LyricsRomanizationResult.Romanized -> {
+                        romanizationState = LyricsTranslationUiState.Ready(result.lines)
+                        lyricsDisplayMode = LyricsDisplayMode.Romanized
+                        translationTransition++
+                    }
+                    LyricsRomanizationResult.AlreadyRomanized -> {
+                        romanizationState = LyricsTranslationUiState.SameLanguage
+                    }
+                    LyricsRomanizationResult.Unavailable -> {
+                        romanizationState = LyricsTranslationUiState.Idle
+                    }
                 }
             }
+        } else if (!autoRomanize && lyricsDisplayMode == LyricsDisplayMode.Romanized) {
+            lyricsDisplayMode = LyricsDisplayMode.Original
+            translationTransition++
         }
     }
     val displayedLyrics = when (lyricsDisplayMode) {
@@ -3161,6 +3169,11 @@ internal fun rememberLyricsTranslation(
         LyricsDisplayMode.Translated -> (translationState as? LyricsTranslationUiState.Ready)?.lines
         LyricsDisplayMode.Romanized -> (romanizationState as? LyricsTranslationUiState.Ready)?.lines
         LyricsDisplayMode.Original -> null
+    }
+    LaunchedEffect(trackId, displayedLyrics) {
+        if (trackId.isNotBlank() && displayedLyrics.isNotEmpty()) {
+            PlayerPlatform.host.publishActiveDisplayedLyrics(trackId, displayedLyrics)
+        }
     }
     val translationScope = rememberCoroutineScope()
     val toggleTranslation: () -> Unit = toggleTranslation@{

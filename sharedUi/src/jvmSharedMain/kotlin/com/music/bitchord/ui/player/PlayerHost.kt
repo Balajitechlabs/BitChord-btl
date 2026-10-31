@@ -157,6 +157,12 @@ interface PlayerHost {
      */
     @Composable
     fun LyricsShareSheet(hazeState: HazeState, request: LyricsShareRequest, onDismiss: () -> Unit) = Unit
+
+    /**
+     * Publishes the lyrics currently displayed in the player UI (Original, Romanized, or Translated)
+     * so that platform surfaces (like OriginOS Island or notifications) match the app 1:1 in real time.
+     */
+    fun publishActiveDisplayedLyrics(trackId: String, lines: List<LyricLine>) = Unit
 }
 
 private val NoCast = MutableStateFlow(CastUi())

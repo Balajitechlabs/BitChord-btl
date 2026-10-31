@@ -252,6 +252,17 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         request: LyricsShareRequest,
         onDismiss: () -> Unit,
     ) = AndroidLyricsShareSheet(hazeState = hazeState, request = request, onDismiss = onDismiss)
+
+    override fun publishActiveDisplayedLyrics(trackId: String, lines: List<LyricLine>) {
+        val current = AppSettings.activeLyricsOverride.value
+        if (current?.videoId != trackId || current.lines != lines) {
+            AppSettings.activeLyricsOverride.value = AppSettings.ActiveLyricsOverride(
+                videoId = trackId,
+                source = current?.source,
+                lines = lines,
+            )
+        }
+    }
 }
 
 /**

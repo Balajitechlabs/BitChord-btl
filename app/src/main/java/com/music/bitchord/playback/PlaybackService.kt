@@ -7533,24 +7533,9 @@ class PlaybackService : MediaLibraryService() {
                 val currentSong = player?.currentMediaItem?.toSong()
                 if (override != null && currentSong != null && override.videoId == currentSong.videoId) {
                     serviceLyricsJob?.cancel()
-                    serviceLyricsJob = scope.launch(Dispatchers.IO) {
-                        var effectiveLines = override.lines
-                        if (AppSettings.autoRomanizeLyrics.value) {
-                            val romanized = LyricsTranslation.romanize(
-                                trackId = currentSong.videoId,
-                                lines = override.lines,
-                                targetLanguageTag = AppSettings.translationLanguage.value,
-                            )
-                            if (romanized is LyricsTranslation.RomanizationResult.Romanized) {
-                                effectiveLines = romanized.lines
-                            }
-                        }
-                        withContext(Dispatchers.Main) {
-                            serviceLyrics = effectiveLines
-                            lastPublishedSubtitle = null
-                            updateLyricSubtitle()
-                        }
-                    }
+                    serviceLyrics = override.lines
+                    lastPublishedSubtitle = null
+                    updateLyricSubtitle()
                 }
             }
         }
@@ -8169,24 +8154,10 @@ class PlaybackService : MediaLibraryService() {
         val override = AppSettings.activeLyricsOverride.value
         if (override != null && override.videoId == currentSong.videoId) {
             serviceLyricsJob?.cancel()
-            serviceLyricsJob = scope.launch(Dispatchers.IO) {
-                var effectiveLines = override.lines
-                if (AppSettings.autoRomanizeLyrics.value) {
-                    val romanized = LyricsTranslation.romanize(
-                        trackId = currentSong.videoId,
-                        lines = override.lines,
-                        targetLanguageTag = AppSettings.translationLanguage.value,
-                    )
-                    if (romanized is LyricsTranslation.RomanizationResult.Romanized) {
-                        effectiveLines = romanized.lines
-                    }
-                }
-                withContext(Dispatchers.Main) {
-                    serviceLyrics = effectiveLines
-                    if (player?.isPlaying == true) {
-                        updateLyricSubtitle()
-                    }
-                }
+            serviceLyrics = override.lines
+            if (player?.isPlaying == true) {
+                lastPublishedSubtitle = null
+                updateLyricSubtitle()
             }
             return
         }
