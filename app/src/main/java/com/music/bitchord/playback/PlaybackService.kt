@@ -1049,6 +1049,7 @@ class PlaybackService : MediaLibraryService() {
             autoplayLoadJob = null
             autoplaySeed = null
             loadAutoplayForCurrentTrack()
+            lastPublishedSubtitle = null
             loadLyricsForCurrentTrack()
             if (exoPlayer.isPlaying) startLyricsTicker()
             refreshCustomLayouts()
@@ -2029,19 +2030,30 @@ class PlaybackService : MediaLibraryService() {
             )
             .addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this, R.drawable.ic_notification_logo),
+                    Icon.createWithResource(
+                        this,
+                        if (lyricsMode) R.drawable.ic_notification_lyrics else R.drawable.ic_notification_lyrics_off,
+                    ),
                     if (lyricsMode) "Title" else "Lyrics",
                     toggleLyricsIntent,
                 ).build(),
             )
 
         builder.setShortCriticalText(shortCritical)
-        builder.addExtras(
-            Bundle().apply {
-                putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
-                putInt("notification.superx.operation", 1)
-            },
-        )
+        val islandExtras = Bundle().apply {
+            putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+            putInt("notification.superx.operation", 1)
+            putBoolean("notification.superx.showNotify", true)
+            putInt("notification.superx.template", 1)
+            putString("notification.superx.scene", "AUDIO_PLAYER")
+            putParcelable("notification.superx.clickResp", contentIntent)
+            val baseInfo = Bundle().apply {
+                putCharSequence("notification.superx.baseInfos.title", title)
+                putCharSequence("notification.superx.baseInfos.content", lyricToDisplay ?: artist)
+            }
+            putBundle("notification.superx.baseInfos", baseInfo)
+        }
+        builder.addExtras(islandExtras)
 
         notificationManager.notify(ISLAND_NOTIFICATION_ID, builder.build())
     }
@@ -7517,6 +7529,32 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         scope.launch {
+            AppSettings.activeLyricsOverride.collect { override ->
+                val currentSong = player?.currentMediaItem?.toSong()
+                if (override != null && currentSong != null && override.videoId == currentSong.videoId) {
+                    serviceLyricsJob?.cancel()
+                    serviceLyricsJob = scope.launch(Dispatchers.IO) {
+                        var effectiveLines = override.lines
+                        if (AppSettings.autoRomanizeLyrics.value) {
+                            val romanized = LyricsTranslation.romanize(
+                                trackId = currentSong.videoId,
+                                lines = override.lines,
+                                targetLanguageTag = AppSettings.translationLanguage.value,
+                            )
+                            if (romanized is LyricsTranslation.RomanizationResult.Romanized) {
+                                effectiveLines = romanized.lines
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            serviceLyrics = effectiveLines
+                            lastPublishedSubtitle = null
+                            updateLyricSubtitle()
+                        }
+                    }
+                }
+            }
+        }
+        scope.launch {
             AppSettings.spatialAudio.collect { applySpatialAudioEnabled() }
         }
         scope.launch {
@@ -8128,6 +8166,31 @@ class PlaybackService : MediaLibraryService() {
             return
         }
 
+        val override = AppSettings.activeLyricsOverride.value
+        if (override != null && override.videoId == currentSong.videoId) {
+            serviceLyricsJob?.cancel()
+            serviceLyricsJob = scope.launch(Dispatchers.IO) {
+                var effectiveLines = override.lines
+                if (AppSettings.autoRomanizeLyrics.value) {
+                    val romanized = LyricsTranslation.romanize(
+                        trackId = currentSong.videoId,
+                        lines = override.lines,
+                        targetLanguageTag = AppSettings.translationLanguage.value,
+                    )
+                    if (romanized is LyricsTranslation.RomanizationResult.Romanized) {
+                        effectiveLines = romanized.lines
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    serviceLyrics = effectiveLines
+                    if (player?.isPlaying == true) {
+                        updateLyricSubtitle()
+                    }
+                }
+            }
+            return
+        }
+
         val trackDurationMs = (player?.duration ?: 0L).takeIf { it > 0 } ?: 0L
 
         serviceLyricsJob?.cancel()
@@ -8174,8 +8237,8 @@ class PlaybackService : MediaLibraryService() {
         if (lyricsTickerJob?.isActive == true) return
         lyricsTickerJob = scope.launch(Dispatchers.Main) {
             while (isActive) {
-                updateLyricSubtitle()
-                delay(500L)
+                val delayMs = updateLyricSubtitle()
+                delay(delayMs)
             }
         }
     }
@@ -8186,21 +8249,46 @@ class PlaybackService : MediaLibraryService() {
         updateLyricSubtitle()
     }
 
-    private fun updateLyricSubtitle() {
-        val exoPlayer = player ?: return
-        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
+    private fun updateLyricSubtitle(): Long {
+        val exoPlayer = player ?: return 500L
+        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return 500L
         val lines = serviceLyrics
         val pos = crossfade?.loopPositionMs() ?: exoPlayer.currentPosition
-        val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
+        val hasSyncedLyrics = lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value
+
+        val (subtitleText, timeUntilNextMs) = if (hasSyncedLyrics) {
             val idx = lines.indexOfLast { it.timeMs <= pos }
             val currentLine = lines.getOrNull(idx)
-            if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
-                "♪ ${currentLine.text}"
+            val nextLine = lines.getOrNull(idx + 1)
+            val sungUntilMs = currentLine?.sungUntilMs
+
+            val nextTransitionTimeMs = when {
+                idx < 0 -> lines.firstOrNull()?.timeMs
+                sungUntilMs != null && pos < sungUntilMs -> {
+                    minOf(sungUntilMs, nextLine?.timeMs ?: Long.MAX_VALUE)
+                }
+                nextLine != null -> nextLine.timeMs
+                else -> null
+            }
+
+            val remainingMs = if (nextTransitionTimeMs != null && nextTransitionTimeMs > pos) {
+                nextTransitionTimeMs - pos
+            } else {
+                250L
+            }
+
+            val text = if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
+                if (sungUntilMs != null && pos >= sungUntilMs) {
+                    currentSong.artist
+                } else {
+                    "♪ ${currentLine.text}"
+                }
             } else {
                 currentSong.artist
             }
+            text to remainingMs
         } else {
-            currentSong.artist
+            currentSong.artist to 500L
         }
 
         if (subtitleText != lastPublishedSubtitle) {
@@ -8223,6 +8311,8 @@ class PlaybackService : MediaLibraryService() {
                 updateMusicIslandNotification(exoPlayer, currentLyric = subtitleText)
             }
         }
+
+        return timeUntilNextMs.coerceIn(40L, 200L)
     }
 
     /**

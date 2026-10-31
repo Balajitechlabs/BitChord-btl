@@ -418,6 +418,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             LyricsSource.entries.associateWith { LyricsProviderState.NOT_FETCHED }
         _lyrics.value = null
         _lyricsSource.value = null
+        AppSettings.activeLyricsOverride.value = null
         lyricsJob?.cancel()
         if (sources.isEmpty()) {
             // Switched off, or every source unticked. Nothing to look up, and
@@ -439,6 +440,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // not which of the eight services they came from months ago.
                     _lyricsSource.value = null
                     _lyricsChecked.value = true
+                    AppSettings.activeLyricsOverride.value = AppSettings.ActiveLyricsOverride(
+                        videoId = videoId,
+                        source = null,
+                        lines = embedded,
+                    )
                     return@launch
                 }
             }
@@ -460,6 +466,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _lyrics.value = selected?.lines
             _lyricsSource.value = selected?.source
             _lyricsChecked.value = true
+            if (selected != null) {
+                AppSettings.activeLyricsOverride.value = AppSettings.ActiveLyricsOverride(
+                    videoId = videoId,
+                    source = selected.source,
+                    lines = selected.lines,
+                )
+            }
         }
     }
 
@@ -552,6 +565,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _lyrics.value = result.lines
         _lyricsSource.value = result.source
         _lyricsChecked.value = true
+        currentLyricsRequest?.videoId?.let { vid ->
+            AppSettings.activeLyricsOverride.value = AppSettings.ActiveLyricsOverride(
+                videoId = vid,
+                source = result.source,
+                lines = result.lines,
+            )
+        }
     }
 
     private val _account = MutableStateFlow<Account?>(null)

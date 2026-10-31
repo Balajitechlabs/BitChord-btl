@@ -11,6 +11,7 @@ import androidx.media3.common.Player
 import com.music.bitchord.BuildConfig
 import com.music.bitchord.auth.AuthStore
 import com.music.bitchord.data.canvas.SpotifyToken
+import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.playback.EqLayout
@@ -641,6 +642,19 @@ object AppSettings {
      * always behaved.
      */
     val prioritizeSyllableSync = MutableStateFlow(false)
+
+    /**
+     * Active lyrics selected or overridden by the user (or current player view) for the track in play.
+     * Observed by PlaybackService to immediately synchronize the Vivo OriginOS Island whenever
+     * the lyrics provider changes in the UI.
+     */
+    data class ActiveLyricsOverride(
+        val videoId: String,
+        val source: LyricsSource?,
+        val lines: List<LyricLine>,
+    )
+
+    val activeLyricsOverride = MutableStateFlow<ActiveLyricsOverride?>(null)
 
     /** User-issued credential required by api.paxsenix.org. */
     val paxSenixApiKey = MutableStateFlow("")
