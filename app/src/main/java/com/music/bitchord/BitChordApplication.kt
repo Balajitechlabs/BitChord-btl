@@ -4,7 +4,6 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.annotation.OptIn
-import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.media3.common.util.UnstableApi
 import coil3.ImageLoader
@@ -87,13 +86,6 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
             java.util.logging.LogManager.getLogManager().reset()
             java.util.logging.Logger.getLogger("").level = java.util.logging.Level.OFF
         }
-        // Compose re-votes the window's frame rate from dispatchDraw on every
-        // frame (API 35+), and Samsung's View logs each vote together with a
-        // stack walk of its caller: measured on an S22, 8,000 lines in two
-        // minutes, two stack traces built on the main thread per frame. The app
-        // asks for its refresh rate itself (MainActivity.applyPerformanceMode),
-        // so those votes buy nothing — and they kept resetting that request.
-        ComposeUiFlags.isAdaptiveRefreshRateEnabled = false
         // The Spotify library and import live in the shared module; the tokens are the WebView's.
         SpotifyLibrary.auth = SpotifyLibrary.Auth {
             SpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, SpotifyToken.clientToken()) }

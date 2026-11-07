@@ -118,6 +118,7 @@ import java.util.concurrent.atomic.AtomicLong
 /** What the Search tab searches: YouTube Music, or the Local Music folder on this device. */
 enum class SearchSource { YOUTUBE, LIBRARY, ADDONS }
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val authStore = AuthStore(app)

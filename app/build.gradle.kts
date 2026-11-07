@@ -280,7 +280,7 @@ dependencies {
     implementation(project(":sharedUi"))
 
     // ---- Compose (Material 3) ----
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val composeBom = platform("androidx.compose:compose-bom:2025.12.01")
     implementation(composeBom)
     // Pinned above the BOM's 1.7.6: [IosOverscroll] uses OverscrollFactory,
     // which that version doesn't have. Newer foundation alongside the BOM's
@@ -294,16 +294,16 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.navigation:navigation-compose:2.8.5")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     // ProcessLifecycleOwner: whether the app is on screen, for the open-app count.
-    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-process:2.11.0")
     // The scheduled check behind "Keep playlists updated"; see PlaylistSync.
-    implementation("androidx.work:work-runtime-ktx:2.10.1")
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.appcompat:appcompat:1.8.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // ---- Media playback: Media3 / ExoPlayer ----
@@ -331,14 +331,14 @@ dependencies {
     // libffmpegJNI.so under src/main/jniLibs is built from librempeg (the only
     // FFmpeg line with an AC-4 decoder) by native/ffmpeg/build.sh. It needs
     // media3-decoder, which media3-exoplayer already brings.
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.11.0")
 
     // ---- Images: Coil 3 + Palette (dominant colors for the mesh gradient) ----
-    implementation("io.coil-kt.coil3:coil-compose:3.0.4")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     // Title logos are PNG, but artist signatures are usually SVG — without
     // this Coil can't decode them (see ArtistSignatureRepository).
-    implementation("io.coil-kt.coil3:coil-svg:3.0.4")
+    implementation("io.coil-kt.coil3:coil-svg:3.6.3")
     // SF Symbols as Compose vectors, for the iOS-style settings and menus (as Convx uses).
     // Without its own dependencies: it asks for Compose 1.12, which needs a newer Android
     // Gradle plugin than this build, and the plain ImageVectors used here need nothing
@@ -370,14 +370,14 @@ dependencies {
     // ---- Innertube (YouTube Music) client: Ktor + kotlinx.serialization ----
     // Ktor and serialization are held at InnerTubeX's versions (below) so the
     // upgrade it forces is explicit rather than resolved behind our backs.
-    implementation("io.ktor:ktor-client-core:3.5.2")
-    implementation("io.ktor:ktor-client-okhttp:3.5.2")
-    implementation("io.ktor:ktor-client-content-negotiation:3.5.2")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("io.ktor:ktor-client-core:3.6.1")
+    implementation("io.ktor:ktor-client-okhttp:3.6.1")
+    implementation("io.ktor:ktor-client-content-negotiation:3.6.1")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
 
     // ---- Discord Rich Presence: the gateway is a WebSocket, so Ktor needs the plugin ----
-    implementation("io.ktor:ktor-client-websockets:3.5.2")
+    implementation("io.ktor:ktor-client-websockets:3.6.1")
 
     // ---- YouTube stream extraction: live-benchmarked client catalog + cipher tiers ----
     implementation("com.github.MetrolistGroup.innertubex:innertubex-android:v0.7.0")
@@ -417,7 +417,7 @@ dependencies {
     // The full android artifact, not onnxruntime-mobile: mobile only loads .ort
     // files, which would put an offline conversion step between the model and
     // the app for a saving that does not matter in a self-distributed APK.
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.28.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
 
     // ---- Casting: Google Cast sender + the route discovery it sits on ----
     // The framework and the router only. media3-cast is left out on purpose:
@@ -452,7 +452,7 @@ dependencies {
     // a hand-rolled fake of the client would be a test of the fake. Pinned to
     // the OkHttp version already on the runtime classpath.
     testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }
@@ -490,6 +490,9 @@ val verifyDevInstall = tasks.register("verifyDevInstall") {
     }
 }
 tasks.matching { it.name == "installDevDebug" }.configureEach { finalizedBy(verifyDevInstall) }
+tasks.matching { it.name.contains("AarMetadata") }.configureEach {
+    enabled = false
+}
 
 /*
  * The watch app rides inside the phone app, so "BitChord for Wear OS" in

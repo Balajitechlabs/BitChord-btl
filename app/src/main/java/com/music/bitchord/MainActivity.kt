@@ -4704,6 +4704,8 @@ private fun BitChordApp(
             // carried out there, on a curve slow enough to watch the artwork
             // fly home on, rather than on the sheet's own.
             val sheetDensity = LocalDensity.current
+            val positionalThreshold: () -> Float = { with(sheetDensity) { 56.dp.toPx() } }
+            val velocityThreshold: () -> Float = { with(sheetDensity) { 125.dp.toPx() } }
             val confirmSheetValue: (SheetValue) -> Boolean = { value ->
                 // Read when asked, not when the sheet was made: the setting
                 // can change while the player is up.
@@ -4717,18 +4719,19 @@ private fun BitChordApp(
             val nowPlayingSheetState = rememberSaveable(
                 saver = SheetState.Saver(
                     skipPartiallyExpanded = true,
+                    positionalThreshold = positionalThreshold,
+                    velocityThreshold = velocityThreshold,
                     confirmValueChange = confirmSheetValue,
-                    density = sheetDensity,
                     skipHiddenState = false,
                 ),
             ) {
                 SheetState(
                     skipPartiallyExpanded = true,
-                    density = sheetDensity,
-                    // Already open when the app is the one raising it: its
-                    // content is held down, and slid up, by the motion.
+                    positionalThreshold = positionalThreshold,
+                    velocityThreshold = velocityThreshold,
                     initialValue = if (playerSheetMotion.holding) SheetValue.Expanded else SheetValue.Hidden,
                     confirmValueChange = confirmSheetValue,
+                    skipHiddenState = false,
                 )
             }
             DisposableEffect(nowPlayingSheetState) {

@@ -13,11 +13,11 @@ bun    = "latest"   # web/ module JS tooling
 
 [env]
 # Android SDK paths — the android CLI installs everything here
-ANDROID_HOME     = "~/Library/Android/sdk"
-ANDROID_SDK_ROOT = "~/Library/Android/sdk"
+ANDROID_HOME     = "/Users/btl/Library/Android/sdk"
+ANDROID_SDK_ROOT = "/Users/btl/Library/Android/sdk"
 
 # NDK — installed via: android sdk install "ndk;27.0.12077973"
-ANDROID_NDK_HOME = "~/Library/Android/sdk/ndk/27.0.12077973"
+ANDROID_NDK_HOME = "/Users/btl/Library/Android/sdk/ndk/27.0.12077973"
 
 # JAVA_HOME is automatically set by mise's java tool —
 # no need to hardcode a path here.

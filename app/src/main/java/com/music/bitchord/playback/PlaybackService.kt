@@ -9577,6 +9577,7 @@ class PlaybackService : MediaLibraryService() {
         return items.subList(from, to)
     }
 
+    @Suppress("DEPRECATION")
     private fun createGridPlaylistItem(
         mediaId: String,
         title: String,
@@ -9642,6 +9643,7 @@ class PlaybackService : MediaLibraryService() {
         songs.forEach { songCache[it.videoId] = it }
     }
 
+    @Suppress("DEPRECATION")
     private fun browseItemToGridItem(item: BrowseItem): MediaItem = createGridPlaylistItem(
         mediaId = "browse:${item.browseId}",
         title = item.title,
@@ -9650,6 +9652,7 @@ class PlaybackService : MediaLibraryService() {
         folderType = if (item.browseId.startsWith("MPREb_")) MediaMetadata.FOLDER_TYPE_ALBUMS else MediaMetadata.FOLDER_TYPE_PLAYLISTS,
     )
 
+    @Suppress("DEPRECATION")
     private fun createFolderItem(
         mediaId: String,
         title: String,
@@ -9674,6 +9677,7 @@ class PlaybackService : MediaLibraryService() {
             .build()
     }
 
+    @Suppress("DEPRECATION")
     private fun MediaItem.withGridStyle(): MediaItem {
         val currentExtras = mediaMetadata.extras ?: Bundle()
         val newExtras = Bundle(currentExtras).apply {
@@ -9702,6 +9706,7 @@ class PlaybackService : MediaLibraryService() {
             .build()
     }
 
+    @Suppress("DEPRECATION")
     private fun ShelfItem.toMediaItemOrNull(): MediaItem? {
         val vid = videoId
         if (vid != null) {
