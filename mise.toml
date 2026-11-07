@@ -7,7 +7,7 @@
 # already pins the exact version via gradle-wrapper.properties.
 
 [tools]
-java   = "zulu-21"  # JDK required by AGP 8.10.1+ and Gradle 8.11.1
+java   = "zulu-21"  # JDK required by AGP and Gradle
 python = "3.15.2"   # Build scripts, automation tooling
 bun    = "latest"   # web/ module JS tooling
 
@@ -19,5 +19,28 @@ ANDROID_SDK_ROOT = "/Users/btl/Library/Android/sdk"
 # NDK — installed via: android sdk install "ndk;27.0.12077973"
 ANDROID_NDK_HOME = "/Users/btl/Library/Android/sdk/ndk/27.0.12077973"
 
-# JAVA_HOME is automatically set by mise's java tool —
-# no need to hardcode a path here.
+# JAVA_HOME is automatically set by mise's java tool
+
+[tasks.build]
+description = "Fast build phone debug APK"
+run = "./gradlew :app:assembleDevDebug"
+
+[tasks."build-opt"]
+description = "Build fully optimized R8-minified release APK (signed with debug key, installs directly)"
+run = "./gradlew :app:assembleDevBenchmark"
+
+[tasks."build-release"]
+description = "Build final production release APK"
+run = "./gradlew :app:assembleProdRelease"
+
+[tasks.install]
+description = "Build, install dev APK on connected device, and pre-verify"
+run = "./gradlew :app:installDevDebug"
+
+[tasks."install-opt"]
+description = "Build, install fully optimized release-speed APK on connected device, and pre-verify"
+run = "./gradlew :app:installDevBenchmark"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "./gradlew clean"

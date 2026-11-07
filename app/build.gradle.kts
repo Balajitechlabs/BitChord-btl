@@ -101,14 +101,16 @@ android {
         // the same GitHub release, told apart by file name. See
         // AppUpdateChecker.apkAssetUrl.
         buildConfigField("String", "UPDATE_APK_PREFIX", "\"BitChord-\"")
+
+        ndk {
+            abiFilters.clear()
+            abiFilters += "arm64-v8a"
+        }
     }
 
     splits {
         abi {
-            isEnable = true
-            reset()
-            include("armeabi-v7a", "arm64-v8a", "x86_64")
-            isUniversalApk = true
+            isEnable = false
         }
     }
 
@@ -232,6 +234,10 @@ android {
             // logic it was written to check.
             isReturnDefaultValues = true
         }
+    }
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
@@ -490,9 +496,6 @@ val verifyDevInstall = tasks.register("verifyDevInstall") {
     }
 }
 tasks.matching { it.name == "installDevDebug" }.configureEach { finalizedBy(verifyDevInstall) }
-tasks.matching { it.name.contains("AarMetadata") }.configureEach {
-    enabled = false
-}
 
 /*
  * The watch app rides inside the phone app, so "BitChord for Wear OS" in

@@ -88,3 +88,6 @@
 -dontwarn org.conscrypt.**
 -dontwarn com.android.org.conscrypt.**
 -dontwarn io.github.muntashirakon.adb.**
+
+# Silence Kotlin metadata parsing warnings when R8 reads newer metadata formats
+-dontwarn kotlin.Metadata
