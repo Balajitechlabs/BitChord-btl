@@ -109,6 +109,11 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
+        <!-- Vivo OriginOS Dynamic Island & App Reminder Support -->
+        <meta-data
+            android:name="vivo.atomic.island.support"
+            android:value="true" />
+
         <!--
           No android:screenOrientation here, deliberately: the app follows the
           system's own auto-rotate setting on every device, phones included.
