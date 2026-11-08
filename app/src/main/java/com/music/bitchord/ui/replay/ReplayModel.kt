@@ -317,6 +317,19 @@ fun Context.replayCount(count: Int, plural: Int): String =
  * drawn in three places — the page, a story, the shared poster — and only one of
  * them has an index to hand.
  */
+enum class ReplaySortMode(val label: String) {
+    TIME("⏱️ By Time"),
+    PLAYS("🔁 By Plays"),
+}
+
+enum class ChartDepth(val label: String, val limit: Int) {
+    TOP_5("Top 5", 5),
+    TOP_10("Top 10", 10),
+    TOP_20("Top 20", 20),
+    TOP_50("Top 50", 50),
+    ALL("All", 1000),
+}
+
 data class ReplayRow(
     val key: String,
     val rank: Int,
@@ -325,10 +338,31 @@ data class ReplayRow(
     val artworkUrl: String?,
     val ms: Long,
     val plays: Int,
-)
+) {
+    val milestoneLabel: String? get() = when {
+        rank == 1 -> "👑 #1 Legend"
+        rank in 2..5 -> "🥇 Top 5"
+        plays >= 1000 -> "🚀 1K+ Club"
+        plays >= 100 -> "💎 Century Club"
+        plays >= 50 -> "🔥 Heavy Rotation"
+        plays >= 10 -> "🔁 On Repeat"
+        else -> null
+    }
+}
 
-fun ReplaySummary.songRows(limit: Int): List<ReplayRow> =
-    songs.take(limit).mapIndexed { index, entry ->
+fun ReplaySummary.songRows(
+    limit: Int,
+    sortMode: ReplaySortMode = ReplaySortMode.TIME,
+    query: String = "",
+): List<ReplayRow> {
+    val filtered = if (query.isBlank()) songs else songs.filter {
+        it.song.title.contains(query, ignoreCase = true) || it.song.artist.contains(query, ignoreCase = true)
+    }
+    val sorted = when (sortMode) {
+        ReplaySortMode.TIME -> filtered.sortedByDescending { it.ms }
+        ReplaySortMode.PLAYS -> filtered.sortedWith(compareByDescending<com.music.bitchord.data.stats.RankedSong> { it.plays }.thenByDescending { it.ms })
+    }
+    return sorted.take(limit).mapIndexed { index, entry ->
         ReplayRow(
             key = entry.song.videoId,
             rank = index + 1,
@@ -339,9 +373,21 @@ fun ReplaySummary.songRows(limit: Int): List<ReplayRow> =
             plays = entry.plays,
         )
     }
+}
 
-fun ReplaySummary.artistRows(limit: Int): List<ReplayRow> =
-    artists.take(limit).mapIndexed { index, entry ->
+fun ReplaySummary.artistRows(
+    limit: Int,
+    sortMode: ReplaySortMode = ReplaySortMode.TIME,
+    query: String = "",
+): List<ReplayRow> {
+    val filtered = if (query.isBlank()) artists else artists.filter {
+        it.title.contains(query, ignoreCase = true)
+    }
+    val sorted = when (sortMode) {
+        ReplaySortMode.TIME -> filtered.sortedByDescending { it.ms }
+        ReplaySortMode.PLAYS -> filtered.sortedWith(compareByDescending<com.music.bitchord.data.stats.RankedEntry> { it.plays }.thenByDescending { it.ms })
+    }
+    return sorted.take(limit).mapIndexed { index, entry ->
         ReplayRow(
             key = entry.title,
             rank = index + 1,
@@ -352,9 +398,21 @@ fun ReplaySummary.artistRows(limit: Int): List<ReplayRow> =
             plays = entry.plays,
         )
     }
+}
 
-fun ReplaySummary.albumRows(limit: Int): List<ReplayRow> =
-    albums.take(limit).mapIndexed { index, entry ->
+fun ReplaySummary.albumRows(
+    limit: Int,
+    sortMode: ReplaySortMode = ReplaySortMode.TIME,
+    query: String = "",
+): List<ReplayRow> {
+    val filtered = if (query.isBlank()) albums else albums.filter {
+        it.title.contains(query, ignoreCase = true) || (it.subtitle?.contains(query, ignoreCase = true) == true)
+    }
+    val sorted = when (sortMode) {
+        ReplaySortMode.TIME -> filtered.sortedByDescending { it.ms }
+        ReplaySortMode.PLAYS -> filtered.sortedWith(compareByDescending<com.music.bitchord.data.stats.RankedEntry> { it.plays }.thenByDescending { it.ms })
+    }
+    return sorted.take(limit).mapIndexed { index, entry ->
         ReplayRow(
             key = entry.title + "|" + entry.subtitle.orEmpty(),
             rank = index + 1,
@@ -365,6 +423,7 @@ fun ReplaySummary.albumRows(limit: Int): List<ReplayRow> =
             plays = entry.plays,
         )
     }
+}
 
 /**
  * Genres, with the artwork deliberately dropped.

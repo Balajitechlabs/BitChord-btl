@@ -434,6 +434,72 @@ object ListeningStats {
         return months().mapNotNull { read(it.toString()) }
     }
 
+    private val allTimeSongCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, Int>>()
+    private val allTimeRankCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    fun trackMilestone(videoId: String?, title: String?): com.music.bitchord.data.TrackMilestone? {
+        if (videoId == null && title == null) return null
+
+        val key = videoId ?: title!!.trim().lowercase(Locale.ROOT)
+        var stats = allTimeSongCache[key]
+        var rank = allTimeRankCache[key]
+
+        if (stats == null && title != null) {
+            val titleKey = title.trim().lowercase(Locale.ROOT)
+            stats = allTimeSongCache[titleKey]
+            rank = allTimeRankCache[titleKey]
+        }
+
+        if (stats == null) {
+            populateAllTimeCache()
+            stats = allTimeSongCache[key] ?: (if (title != null) allTimeSongCache[title.trim().lowercase(Locale.ROOT)] else null)
+            rank = allTimeRankCache[key] ?: (if (title != null) allTimeRankCache[title.trim().lowercase(Locale.ROOT)] else null)
+        }
+
+        val plays = stats?.second ?: 0
+        val ms = stats?.first ?: 0L
+        return com.music.bitchord.data.TrackMilestone(
+            plays = plays,
+            ms = ms,
+            rank = rank,
+            title = title.orEmpty(),
+        )
+    }
+
+    private fun populateAllTimeCache() {
+        if (!ready) return
+        val files = directory.listFiles() ?: return
+        val aggregated = mutableMapOf<String, Pair<Long, Int>>()
+        val idToTitle = mutableMapOf<String, String>()
+
+        files.forEach { file ->
+            val bucket = runCatching { json.decodeFromString(StoredBucket.serializer(), file.readText()) }.getOrNull()
+            bucket?.tracks?.forEach { t ->
+                val idKey = t.id
+                val titleKey = t.title.trim().lowercase(Locale.ROOT)
+                val curId = aggregated[idKey] ?: (0L to 0)
+                aggregated[idKey] = (curId.first + t.ms) to (curId.second + t.plays)
+
+                val curTitle = aggregated[titleKey] ?: (0L to 0)
+                aggregated[titleKey] = (curTitle.first + t.ms) to (curTitle.second + t.plays)
+                idToTitle[idKey] = titleKey
+            }
+        }
+
+        allTimeSongCache.clear()
+        allTimeRankCache.clear()
+        allTimeSongCache.putAll(aggregated)
+
+        val sortedById = aggregated.filterKeys { !it.contains(" ") }
+            .toList()
+            .sortedByDescending { it.second.first }
+        sortedById.forEachIndexed { index, (id, _) ->
+            val rank = index + 1
+            allTimeRankCache[id] = rank
+            idToTitle[id]?.let { allTimeRankCache[it] = rank }
+        }
+    }
+
     /**
      * Replaces everything held with [buckets].
      *
@@ -450,6 +516,8 @@ object ListeningStats {
             directory.mkdirs()
             version++
             cached = null
+            allTimeSongCache.clear()
+            allTimeRankCache.clear()
             buckets.forEach { bucket ->
                 val key = runCatching { YearMonth.parse(bucket.month).toString() }.getOrNull()
                     ?: return@forEach
@@ -458,6 +526,7 @@ object ListeningStats {
                         .writeText(json.encodeToString(StoredBucket.serializer(), bucket))
                 }.onFailure { Log.w(TAG, "Could not import bucket $key", it) }
             }
+            populateAllTimeCache()
         }
     }
 

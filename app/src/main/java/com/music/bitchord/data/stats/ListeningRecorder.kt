@@ -83,6 +83,9 @@ object ListeningRecorder {
         if (counts) playCounted = true
 
         ListeningStats.record(enriched(song), step, counts)
+        if (counts) {
+            com.music.bitchord.data.NerdStats.currentMilestone.value = ListeningStats.trackMilestone(song.videoId, song.title)
+        }
 
         if (++samplesSinceFlush >= FLUSH_EVERY) {
             samplesSinceFlush = 0

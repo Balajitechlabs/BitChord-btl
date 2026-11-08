@@ -3842,6 +3842,8 @@ class PlaybackService : MediaLibraryService() {
         }
         currentAudioInputFormat = null
         NerdStats.onTrackTransition(mediaItem?.mediaId)
+        val songTitle = mediaItem?.mediaMetadata?.title?.toString()
+        NerdStats.currentMilestone.value = com.music.bitchord.data.stats.ListeningStats.trackMilestone(mediaItem?.mediaId, songTitle)
         // A rendition discarded and fetched again comes back under the same
         // URI, so a size measured for the last track isn't kept past it.
         measuredBitrateCache.clear()

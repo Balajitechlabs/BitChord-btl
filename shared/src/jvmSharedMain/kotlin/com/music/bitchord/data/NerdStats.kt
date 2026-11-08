@@ -416,10 +416,16 @@ object NerdStats {
      * which [PlaybackService][com.music.bitchord.playback.PlaybackService]
      * reads straight after this call to decide whether it is Dolby Atmos.
      */
+    /**
+     * Lifetime replay stats & milestone tier for the currently playing track.
+     */
+    val currentMilestone = MutableStateFlow<TrackMilestone?>(null)
+
     fun onTrackTransition(mediaId: String? = null) {
         generation.incrementAndGet()
         activeMediaId = mediaId
         current.value = null
+        currentMilestone.value = null
     }
 
     /**
@@ -457,6 +463,7 @@ object NerdStats {
         generation.incrementAndGet()
         activeMediaId = null
         current.value = null
+        currentMilestone.value = null
         racingLossless.value = emptySet()
         picked.clear()
         declared.clear()
@@ -464,4 +471,33 @@ object NerdStats {
     }
 
     private const val MAX_REMEMBERED = 64
+}
+
+/**
+ * Historical listening achievement milestone for a track.
+ */
+data class TrackMilestone(
+    val plays: Int = 0,
+    val ms: Long = 0L,
+    val rank: Int? = null,
+    val title: String = "",
+) {
+    val isNumberOne: Boolean get() = rank == 1
+    val isTopFive: Boolean get() = rank != null && rank in 2..5
+    val isLegendary: Boolean get() = plays >= 1000
+    val isCentury: Boolean get() = plays in 100..999
+    val isHeavyRotation: Boolean get() = plays in 50..99
+    val isOnRepeat: Boolean get() = plays in 10..49
+    val isFirstListen: Boolean get() = plays <= 1
+
+    val badgeLabel: String? get() = when {
+        isNumberOne -> "👑 All-Time #1"
+        isTopFive -> "🥇 Top 5 (#$rank)"
+        isLegendary -> "🚀 1K+ Club ($plays)"
+        isCentury -> "💎 100+ Club ($plays)"
+        isHeavyRotation -> "🔥 Heavy Rotation ($plays)"
+        isOnRepeat -> "🔁 On Repeat ($plays)"
+        plays > 1 -> "🎵 $plays plays"
+        else -> "🌟 First Listen"
+    }
 }

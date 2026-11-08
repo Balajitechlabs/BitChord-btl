@@ -131,6 +131,8 @@ fun ReplayScreen(
     // wherever it had been scrolled to. Saveable, so it outlives that trip —
     // the page's state is kept while it is on the back stack.
     var landed by rememberSaveable(landingPage, state.period) { mutableStateOf(false) }
+    var chartDepth by rememberSaveable { mutableStateOf(ChartDepth.TOP_10) }
+    var sortMode by rememberSaveable { mutableStateOf(ReplaySortMode.TIME) }
     LaunchedEffect(landingPage, state.period, summary == null) {
         if (landed) return@LaunchedEffect
         val target = when {
@@ -198,34 +200,53 @@ fun ReplayScreen(
                         }
                     }
 
+                    item("replay-controls") {
+                        ReplayControls(
+                            chartDepth = chartDepth,
+                            onDepthChange = { chartDepth = it },
+                            sortMode = sortMode,
+                            onSortChange = { sortMode = it },
+                            dark = dark,
+                        )
+                    }
+
+                    val songRows = summary.songRows(chartDepth.limit, sortMode)
                     chart(
                         key = "songs",
                         title = topSongs,
-                        rows = summary.songRows(CHART_LENGTH),
+                        rows = songRows,
                         dark = dark,
                         onClick = { index ->
-                            summary.songs.getOrNull(index)?.let { onPlaySong(it.song) }
+                            songRows.getOrNull(index)?.let { row ->
+                                summary.songs.firstOrNull { it.song.videoId == row.key }?.let { onPlaySong(it.song) }
+                            }
                         },
                     )
+                    val artistRows = summary.artistRows(chartDepth.limit, sortMode)
                     chart(
                         key = "artists",
                         title = topArtists,
-                        rows = summary.artistRows(CHART_LENGTH),
+                        rows = artistRows,
                         dark = dark,
                         circular = true,
                         onClick = { index ->
-                            val artist = summary.artists.getOrNull(index) ?: return@chart
-                            onOpenArtist(artist.browseId, artist.title)
+                            artistRows.getOrNull(index)?.let { row ->
+                                val artist = summary.artists.firstOrNull { it.title == row.title } ?: return@chart
+                                onOpenArtist(artist.browseId, artist.title)
+                            }
                         },
                     )
+                    val albumRows = summary.albumRows(chartDepth.limit, sortMode)
                     chart(
                         key = "albums",
                         title = topAlbums,
-                        rows = summary.albumRows(CHART_LENGTH),
+                        rows = albumRows,
                         dark = dark,
                         onClick = { index ->
-                            val album = summary.albums.getOrNull(index) ?: return@chart
-                            onOpenAlbum(album.browseId, album.title, album.subtitle, album.artworkUrl)
+                            albumRows.getOrNull(index)?.let { row ->
+                                val album = summary.albums.firstOrNull { it.title == row.title } ?: return@chart
+                                onOpenAlbum(album.browseId, album.title, album.subtitle, album.artworkUrl)
+                            }
                         },
                     )
                     if (summary.genres.isNotEmpty()) {
@@ -474,6 +495,84 @@ private fun SectionTitle(text: String, dark: Boolean) {
 }
 
 @Composable
+private fun ReplayControls(
+    chartDepth: ChartDepth,
+    onDepthChange: (ChartDepth) -> Unit,
+    sortMode: ReplaySortMode,
+    onSortChange: (ReplaySortMode) -> Unit,
+    dark: Boolean,
+) {
+    val textColor = if (dark) Color.White else Color.Black
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 6.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Sort Mode Toggle (Time vs Plays)
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(textColor.copy(alpha = 0.08f))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                ReplaySortMode.entries.forEach { mode ->
+                    val active = mode == sortMode
+                    val bg by animateColorAsState(
+                        if (active) textColor.copy(alpha = 0.90f) else Color.Transparent,
+                        tween(150),
+                        label = "sortModeBg",
+                    )
+                    Text(
+                        text = mode.label,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (active) (if (dark) Color.Black else Color.White) else textColor.copy(alpha = 0.60f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(bg)
+                            .clickable { onSortChange(mode) }
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                    )
+                }
+            }
+
+            // Depth Selector (5, 10, 20, 50, All)
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(textColor.copy(alpha = 0.08f))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                ChartDepth.entries.forEach { depth ->
+                    val active = depth == chartDepth
+                    val bg by animateColorAsState(
+                        if (active) AccentRed else Color.Transparent,
+                        tween(150),
+                        label = "depthBg",
+                    )
+                    Text(
+                        text = depth.label,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (active) Color.White else textColor.copy(alpha = 0.60f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(bg)
+                            .clickable { onDepthChange(depth) }
+                            .padding(horizontal = 7.dp, vertical = 5.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onClick: () -> Unit) {
     val textColor = if (dark) Color.White else Color.Black
     val textVariant = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.55f)
@@ -485,7 +584,17 @@ private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onC
             .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RankBadge(row.rank, AccentRed)
+        if (row.rank == 1) {
+            Text(
+                text = "👑 1",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.W900,
+                color = Color(0xFFFFD700),
+                modifier = Modifier.width(36.dp),
+            )
+        } else {
+            RankBadge(row.rank, AccentRed)
+        }
         if (row.artworkUrl != null) {
             AsyncImage(
                 model = row.artworkUrl.artworkAt(ROW_ART_PX),
@@ -514,13 +623,36 @@ private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onC
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            row.milestoneLabel?.let { milestone ->
+                Box(
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (row.rank == 1) Color(0xFFFFD700).copy(alpha = 0.18f) else textColor.copy(alpha = 0.10f))
+                        .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                ) {
+                    Text(
+                        text = milestone,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                        color = if (row.rank == 1) Color(0xFFFFD700) else textColor.copy(alpha = 0.88f),
+                        maxLines = 1,
+                    )
+                }
+            }
         }
         if (row.plays > 0) {
-            Text(
-                text = row.plays.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                color = textColor.copy(alpha = 0.45f),
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${row.plays} plays",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = textColor.copy(alpha = 0.85f),
+                )
+                Text(
+                    text = formatListening(LocalContext.current, row.ms),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textVariant,
+                )
+            }
         }
     }
 }

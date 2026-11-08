@@ -353,13 +353,37 @@ internal fun PlaybackQualityLabel(
     // should keep saying "loading" through that stretch rather than going
     // blank only to possibly say "loading" again a moment later.
     val racingLossless by NerdStats.racingLossless.collectAsStateWithLifecycle()
-    LosslessOrStats(
-        isLoading = isLoading,
-        stillRacing = song.videoId in racingLossless,
-        losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
-        nerdStats = nerdStats,
+    val milestone by NerdStats.currentMilestone.collectAsStateWithLifecycle()
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
         modifier = modifier,
-    )
+    ) {
+        LosslessOrStats(
+            isLoading = isLoading,
+            stillRacing = song.videoId in racingLossless,
+            losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
+            nerdStats = nerdStats,
+        )
+        milestone?.badgeLabel?.let { badge ->
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = badge,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold),
+                    color = if (milestone?.isNumberOne == true) Color(0xFFFFD700) else Color.White.copy(alpha = 0.88f),
+                    maxLines = 1,
+                )
+            }
+        }
+    }
 }
 
 /**
