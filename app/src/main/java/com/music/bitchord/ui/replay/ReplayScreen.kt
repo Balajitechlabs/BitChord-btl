@@ -1,17 +1,24 @@
 package com.music.bitchord.ui.replay
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,10 +31,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.History
@@ -38,11 +47,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
@@ -141,6 +153,7 @@ fun ReplayScreen(
     val onThisDayMemory = remember {
         com.music.bitchord.data.stats.ListeningStats.getOnThisDayMemory()
     }
+    val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(landingPage, state.period, summary == null) {
         if (landed) return@LaunchedEffect
         val target = when {
@@ -335,6 +348,74 @@ fun ReplayScreen(
             }
         }
 
+        // Fast-Scroll Indicator Track on the right edge
+        val layoutInfo = listState.layoutInfo
+        val totalItems = layoutInfo.totalItemsCount
+        val visibleItems = layoutInfo.visibleItemsInfo.size
+        if (totalItems > visibleItems && visibleItems > 0) {
+            val firstVisibleItem = listState.firstVisibleItemIndex
+            val scrollFraction = (firstVisibleItem.toFloat() / (totalItems - visibleItems).coerceAtLeast(1)).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 3.dp)
+                    .width(4.dp)
+                    .fillMaxHeight(0.55f)
+                    .clip(CircleShape)
+                    .background(textColor.copy(alpha = 0.12f)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.25f)
+                        .align(
+                            BiasAlignment(
+                                horizontalBias = 0f,
+                                verticalBias = (scrollFraction * 2f) - 1f,
+                            )
+                        )
+                        .clip(CircleShape)
+                        .background(AccentRed.copy(alpha = 0.85f)),
+                )
+            }
+        }
+
+        // Floating Action Button: Quick Scroll to Top
+        AnimatedVisibility(
+            visible = listState.firstVisibleItemIndex > 3,
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 32.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                AccentRed,
+                                Color(0xFFD32F2F),
+                            )
+                        )
+                    )
+                    .clickable {
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(0)
+                        }
+                    }
+                    .padding(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowUpward,
+                    contentDescription = "Scroll to top",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
     }
 }
 
@@ -596,9 +677,10 @@ private fun ReplayControls(
                 }
             }
 
-            // Depth Selector (5, 10, 20, 50, All)
+            // Depth Selector (5, 10, 20, 50, 100, All)
             Row(
                 Modifier
+                    .horizontalScroll(rememberScrollState())
                     .clip(RoundedCornerShape(8.dp))
                     .background(textColor.copy(alpha = 0.08f))
                     .padding(2.dp),
@@ -639,16 +721,25 @@ private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onC
             .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (row.rank == 1) {
-            Text(
-                text = "👑 1",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.W900,
-                color = Color(0xFFFFD700),
-                modifier = Modifier.width(36.dp),
-            )
-        } else {
-            RankBadge(row.rank, AccentRed)
+        Box(
+            modifier = Modifier.width(42.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (row.rank == 1) {
+                Text(
+                    text = "👑 1",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.W900,
+                    color = Color(0xFFFFD700),
+                )
+            } else {
+                Text(
+                    text = "${row.rank}",
+                    style = if (row.rank < 100) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.W800,
+                    color = textColor.copy(alpha = 0.45f),
+                )
+            }
         }
         if (row.artworkUrl != null) {
             AsyncImage(

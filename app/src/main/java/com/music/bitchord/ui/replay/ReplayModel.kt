@@ -329,6 +329,7 @@ enum class ChartDepth(val label: String, val limit: Int) {
     TOP_10("Top 10", 10),
     TOP_20("Top 20", 20),
     TOP_50("Top 50", 50),
+    TOP_100("Top 100", 100),
     ALL("All", 1000),
 }
 
