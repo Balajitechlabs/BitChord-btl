@@ -59,7 +59,7 @@ class ReplayState(
  */
 @Composable
 fun rememberReplayState(active: Boolean): Pair<ReplayState, (ReplayPeriod) -> Unit> {
-    var period by rememberSaveable { mutableStateOf(ReplayPeriod.THIS_YEAR) }
+    var period by rememberSaveable { mutableStateOf(ReplayPeriod.ALL_TIME) }
     var summary by remember { mutableStateOf<ReplaySummary?>(null) }
     var loading by remember { mutableStateOf(true) }
     var memberSince by remember { mutableStateOf<String?>(null) }
@@ -275,10 +275,12 @@ enum class ReplayStoryPage {
  */
 fun formatListening(context: Context, ms: Long): String {
     val minutes = ms / 60_000
+    val hours = minutes / 60
+    val remMin = minutes % 60
     return when {
         minutes < 60 -> context.getString(R.string.minutes_short, minutes)
-        minutes < 1_440 -> context.getString(R.string.hours_minutes_short, minutes / 60, minutes % 60)
-        else -> context.getString(R.string.minutes_grouped_short, grouped(minutes))
+        hours < 24 -> context.getString(R.string.hours_minutes_short, hours, remMin)
+        else -> String.format(Locale.ROOT, "%.1f hrs", ms / 3_600_000f)
     }
 }
 

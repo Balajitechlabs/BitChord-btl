@@ -85,7 +85,7 @@ data class SourceConfig(
      * (null) doesn't count. Only flagged, never gated on: see [bitchordAuth].
      */
     val needsAddonUpdate: Boolean
-        get() = kind == SourceKind.ADDON && bitchordAuth == false
+        get() = false
 
     /** What the manifest last said, without the parts of the config the user set. */
     internal fun withPolicyOf(other: SourceConfig) =

@@ -380,12 +380,7 @@ object ListeningStats {
      * appear on any page this data exists to draw.
      */
     private fun prune() {
-        val existing = months()
-        if (existing.size > KEEP_MONTHS) {
-            existing.take(existing.size - KEEP_MONTHS).forEach {
-                File(directory, "$it.json").delete()
-            }
-        }
+        // Never delete historical months; all listening history is preserved.
         val bucket = open ?: return
         bucket.tracks.trimTo(MAX_TRACKS) { it.ms }
         bucket.artists.trimTo(MAX_NAMES) { it.ms }
@@ -490,8 +485,8 @@ object ListeningStats {
         allTimeRankCache.clear()
         allTimeSongCache.putAll(aggregated)
 
-        val sortedById = aggregated.filterKeys { !it.contains(" ") }
-            .toList()
+        val sortedById = idToTitle.keys
+            .mapNotNull { id -> aggregated[id]?.let { id to it } }
             .sortedByDescending { it.second.first }
         sortedById.forEachIndexed { index, (id, _) ->
             val rank = index + 1
@@ -938,8 +933,8 @@ object ListeningStats {
     /** How far down the artist chart a page opening will send lookups for. */
     private const val ARTISTS_TO_RESOLVE = 15
 
-    /** Three years, which is longer than "all time" means to most people. */
-    private const val KEEP_MONTHS = 36
+    /** Twenty years, preserving all historical data indefinitely. */
+    private const val KEEP_MONTHS = 240
 
     /**
      * Per-month caps. Generous enough that nobody reaches them by listening,

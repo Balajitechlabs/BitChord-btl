@@ -671,8 +671,7 @@ private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onC
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = listOfNotNull(row.subtitle, formatListening(LocalContext.current, row.ms))
-                    .joinToString(" · "),
+                text = row.subtitle ?: formatListening(LocalContext.current, row.ms),
                 style = MaterialTheme.typography.bodyMedium,
                 color = textVariant,
                 maxLines = 1,
