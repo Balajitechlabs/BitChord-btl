@@ -29,11 +29,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -133,6 +137,10 @@ fun ReplayScreen(
     var landed by rememberSaveable(landingPage, state.period) { mutableStateOf(false) }
     var chartDepth by rememberSaveable { mutableStateOf(ChartDepth.TOP_10) }
     var sortMode by rememberSaveable { mutableStateOf(ReplaySortMode.TIME) }
+    var savedPlaylistMessage by remember { mutableStateOf<String?>(null) }
+    val onThisDayMemory = remember {
+        com.music.bitchord.data.stats.ListeningStats.getOnThisDayMemory()
+    }
     LaunchedEffect(landingPage, state.period, summary == null) {
         if (landed) return@LaunchedEffect
         val target = when {
@@ -197,6 +205,53 @@ fun ReplayScreen(
                     item("open") {
                         ReplayActionRow(BitChordIcons.Play, stringResource(R.string.play_your_replay), dark) {
                             onOpenStory(ReplayStoryPage.INTRO)
+                        }
+                    }
+
+                    item("save-playlist") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(textColor.copy(alpha = 0.08f))
+                                    .clickable {
+                                        val songsToSave = summary.songs.take(chartDepth.limit).map { it.song }
+                                        if (songsToSave.isNotEmpty()) {
+                                            val title = "🏆 Replay - ${state.summary?.label ?: "Top Songs"}"
+                                            com.music.bitchord.data.spotify.LocalPlaylistStore.savePlaylist(title, songsToSave)
+                                            savedPlaylistMessage = "✓ Saved ${songsToSave.size} songs to '$title'!"
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlaylistAdd,
+                                        contentDescription = null,
+                                        tint = AccentRed,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = savedPlaylistMessage ?: "Save Top ${chartDepth.label} as Playlist",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = textColor,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (onThisDayMemory != null) {
+                        item("on-this-day") {
+                            OnThisDayCard(onThisDayMemory, onPlaySong, dark)
                         }
                     }
 
@@ -779,3 +834,104 @@ private fun EmptyReplay(period: ReplayPeriod, dark: Boolean) {
  * top ten is a list.
  */
 private const val CHART_LENGTH = 5
+
+@Composable
+private fun OnThisDayCard(
+    memory: com.music.bitchord.data.stats.ListeningStats.OnThisDayMemory,
+    onPlaySong: (Song) -> Unit,
+    dark: Boolean,
+) {
+    val textColor = if (dark) Color.White else Color.Black
+    val textVariant = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.55f)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        AccentRed.copy(alpha = 0.22f),
+                        textColor.copy(alpha = 0.06f),
+                    )
+                )
+            )
+            .padding(14.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.History,
+                    contentDescription = null,
+                    tint = AccentRed,
+                    modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "ON THIS DAY · ${memory.yearsAgo} ${if (memory.yearsAgo == 1) "YEAR" else "YEARS"} AGO",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = AccentRed,
+                )
+            }
+            Text(
+                text = memory.dateStr,
+                style = MaterialTheme.typography.labelSmall,
+                color = textVariant,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { onPlaySong(memory.song) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (memory.song.thumbnailUrl != null) {
+                AsyncImage(
+                    model = memory.song.thumbnailUrl.artworkAt(ROW_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
+                )
+            } else {
+                InitialTile(memory.song.title, 46.dp, RoundedCornerShape(8.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = memory.song.title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = textColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${memory.song.artist} · ${memory.plays} plays",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = textVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(AccentRed),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.PlayArrow,
+                    contentDescription = "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}

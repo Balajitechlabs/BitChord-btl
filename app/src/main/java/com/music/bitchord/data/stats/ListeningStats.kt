@@ -500,6 +500,51 @@ object ListeningStats {
         }
     }
 
+    data class OnThisDayMemory(
+        val yearsAgo: Int,
+        val dateStr: String,
+        val song: com.music.bitchord.data.model.Song,
+        val plays: Int,
+    )
+
+    fun getOnThisDayMemory(): OnThisDayMemory? {
+        if (!ready) return null
+        val today = LocalDate.now()
+        val month = today.monthValue
+        val day = today.dayOfMonth
+
+        for (yearsAgo in 1..4) {
+            val pastYear = today.year - yearsAgo
+            val key = "%04d-%02d".format(Locale.ROOT, pastYear, month)
+            val file = File(directory, "$key.json")
+            if (file.exists()) {
+                val bucket = runCatching { json.decodeFromString(StoredBucket.serializer(), file.readText()) }.getOrNull()
+                if (bucket != null) {
+                    val dayKey = "%04d-%02d-%02d".format(Locale.ROOT, pastYear, month, day)
+                    val dayTrack = bucket.tracks.filter { it.days.containsKey(dayKey) }
+                        .maxByOrNull { it.days[dayKey]?.plays ?: 0 }
+                        ?: bucket.tracks.maxByOrNull { it.ms }
+
+                    if (dayTrack != null) {
+                        return OnThisDayMemory(
+                            yearsAgo = yearsAgo,
+                            dateStr = "%02d/%02d/%04d".format(Locale.ROOT, day, month, pastYear),
+                            song = com.music.bitchord.data.model.Song(
+                                videoId = dayTrack.id,
+                                title = dayTrack.title,
+                                artist = dayTrack.artist,
+                                thumbnailUrl = dayTrack.art,
+                                albumName = dayTrack.album,
+                            ),
+                            plays = dayTrack.plays,
+                        )
+                    }
+                }
+            }
+        }
+        return null
+    }
+
     /**
      * Replaces everything held with [buckets].
      *

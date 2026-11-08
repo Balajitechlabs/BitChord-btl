@@ -370,6 +370,7 @@ object AppSettings {
      * us a stereo stream, so there's no Atmos-style source to render.
      */
     val spatialAudio = MutableStateFlow(false)
+    val airPodsProMode = MutableStateFlow(false)
 
     /**
      * The app's own equaliser, master switch.
@@ -1013,6 +1014,7 @@ object AppSettings {
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
         directSourceStream.value = prefs.getBoolean(KEY_DIRECT_SOURCE_STREAM, false)
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
+        airPodsProMode.value = prefs.getBoolean(KEY_AIRPODS_PRO_MODE, false)
         equalizerEnabled.value = prefs.getBoolean(KEY_EQ_ENABLED, false)
         equalizerMode.value = runCatching {
             EqualizerMode.valueOf(prefs.getString(KEY_EQ_MODE, null) ?: EqualizerMode.DYNAMIC.name)
@@ -1338,6 +1340,14 @@ object AppSettings {
     fun setSpatialAudio(value: Boolean) {
         spatialAudio.value = value
         prefs.edit().putBoolean(KEY_SPATIAL_AUDIO, value).apply()
+    }
+
+    fun setAirPodsProMode(value: Boolean) {
+        airPodsProMode.value = value
+        prefs.edit().putBoolean(KEY_AIRPODS_PRO_MODE, value).apply()
+        if (value) {
+            setSpatialAudio(true)
+        }
     }
 
     fun setEqualizerEnabled(value: Boolean) {
@@ -2295,6 +2305,7 @@ object AppSettings {
     private const val KEY_DOLBY_ATMOS = "dolby_atmos"
     private const val KEY_DIRECT_SOURCE_STREAM = "direct_source_stream"
     private const val KEY_SPATIAL_AUDIO = "spatial_audio"
+    private const val KEY_AIRPODS_PRO_MODE = "airpods_pro_mode"
     private const val KEY_EQ_ENABLED = "equalizer_enabled"
     private const val KEY_EQ_MODE = "equalizer_mode"
     private const val KEY_EQ_TONE_X = "equalizer_tone_x"

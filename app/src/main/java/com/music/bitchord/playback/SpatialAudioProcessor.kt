@@ -89,12 +89,17 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         var lpL = lowpassLeft
         var lpR = lowpassRight
 
+        val isAirPods = com.music.bitchord.data.settings.AppSettings.airPodsProMode.value
+        val effectiveWidth = if (isAirPods) 2.9f else widthGain
+        val effectiveCrossfeed = if (isAirPods) 0.28f else crossfeedGain
+        val effectiveOutput = if (isAirPods) 0.88f else outputGain
+
         while (idx < totalSamples) {
             val left = block.samples[idx]
             val right = block.samples[idx + 1]
 
             val mid = (left + right) * 0.5f
-            val side = (left - right) * 0.5f * widthGain
+            val side = (left - right) * 0.5f * effectiveWidth
             var widenedLeft = mid + side
             var widenedRight = mid - side
 
@@ -102,16 +107,16 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
             val delayedLeft = delayLeft[dIdx]
             lpL += lowpassCoeff * (delayedRight - lpL)
             lpR += lowpassCoeff * (delayedLeft - lpR)
-            widenedLeft += lpL * crossfeedGain
-            widenedRight += lpR * crossfeedGain
+            widenedLeft += lpL * effectiveCrossfeed
+            widenedRight += lpR * effectiveCrossfeed
 
             delayLeft[dIdx] = left
             delayRight[dIdx] = right
             dIdx = (dIdx + 1) % delaySize
 
             // Headroom is preserved: no clamping to [-1.0f, +1.0f]
-            block.samples[idx] = widenedLeft * outputGain
-            block.samples[idx + 1] = widenedRight * outputGain
+            block.samples[idx] = widenedLeft * effectiveOutput
+            block.samples[idx + 1] = widenedRight * effectiveOutput
             idx += 2
         }
 

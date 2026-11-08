@@ -685,6 +685,16 @@ fun SettingsScreen(
                     badge = stringResource(R.string.connected).takeIf { outputStatus.isUsb },
                 )
             }
+            val airPodsProTitle = "AirPods Pro 2 Tuned Audio"
+            row(airPodsProTitle, "airpods", "spatial", "apple", "harman") {
+                val airPodsProMode by AppSettings.airPodsProMode.collectAsStateWithLifecycle()
+                SettingsSubRow(
+                    title = airPodsProTitle,
+                    subtitle = "Binaural spatial soundstage & Harman vocal presence tuned for AirPods Pro 2",
+                    checked = airPodsProMode,
+                    onCheckedChange = AppSettings::setAirPodsProMode,
+                )
+            }
             val bitPerfectTitle = stringResource(R.string.bit_perfect_output)
             row(bitPerfectTitle, "usb", "dac", "exclusive", "hi-res", "bitperfect") {
                 // The mode and the device it names can both be long, so they
